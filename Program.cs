@@ -32,12 +32,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy( "AllowAngular", policy =>{
-        policy.WithOrigins(
-     "http://localhost:4200",
-     "https://business-management-ui.vercel.app"
- )
- .AllowAnyHeader()
- .AllowAnyMethod();
+        policy.AllowAnyOrigin()
+       .AllowAnyHeader()
+       .AllowAnyMethod();
     });
 });
 var app = builder.Build();
@@ -49,6 +46,7 @@ if (app.Environment.IsDevelopment())
 }
 app.UseHttpsRedirection();
 app.UseStaticFiles();
+app.UseRouting();
 app.UseCors("AllowAngular");
 app.UseAuthentication();
 app.UseAuthorization();
