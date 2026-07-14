@@ -33,11 +33,11 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy( "AllowAngular", policy =>{
         policy.WithOrigins(
-    "http://localhost:4200",
-    "https://your-app.vercel.app"
-)
-.AllowAnyHeader()
-.AllowAnyMethod();
+     "http://localhost:4200",
+     "https://business-management-ui.vercel.app"
+ )
+ .AllowAnyHeader()
+ .AllowAnyMethod();
     });
 });
 var app = builder.Build();
