@@ -15,8 +15,9 @@ builder.Services.AddScoped<EmailSender>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddHostedService<ReminderService>();
-builder.Services.AddDbContext<AppDbContext>(
-    options => options.UseSqlServer( builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseNpgsql(
+        builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services .AddAuthentication( JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {

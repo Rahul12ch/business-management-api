@@ -50,17 +50,17 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<TaskItem>().HasIndex(x => x.OrderNo).IsUnique();
         modelBuilder.Entity<TaskItem>().Property(x => x.TaskName).HasMaxLength(200);
         modelBuilder.Entity<TaskItem>().Property(x => x.Status).HasMaxLength(20).HasDefaultValue("Pending");
-        modelBuilder.Entity<TaskItem>().Property(x => x.TotalAmount).HasColumnType("decimal(18,2)");
-        modelBuilder.Entity<TaskItem>().Property(x => x.SubTotal).HasColumnType("decimal(18,2)");
-        modelBuilder.Entity<TaskItem>().Property(x => x.GstPercent).HasColumnType("decimal(18,2)");
-        modelBuilder.Entity<TaskItem>().Property(x => x.GstAmount).HasColumnType("decimal(18,2)");
-        modelBuilder.Entity<TaskItem>().Property(x => x.GrandTotal).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<TaskItem>().Property(x => x.TotalAmount).HasColumnType("numeric(18,2)");
+        modelBuilder.Entity<TaskItem>().Property(x => x.SubTotal).HasColumnType("numeric(18,2)");
+        modelBuilder.Entity<TaskItem>().Property(x => x.GstPercent).HasColumnType("numeric(18,2)");
+        modelBuilder.Entity<TaskItem>().Property(x => x.GstAmount).HasColumnType("numeric(18,2)");
+        modelBuilder.Entity<TaskItem>().Property(x => x.GrandTotal).HasColumnType("numeric(18,2)");
 
         modelBuilder.Entity<TaskDetail>().Property(x => x.Description).HasMaxLength(500);
-        modelBuilder.Entity<TaskDetail>().Property(x => x.Rate).HasColumnType("decimal(18,2)");
-        modelBuilder.Entity<TaskDetail>().Property(x => x.Amount).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<TaskDetail>().Property(x => x.Rate).HasColumnType("numeric(18,2)");
+        modelBuilder.Entity<TaskDetail>().Property(x => x.Amount).HasColumnType("numeric(18,2)");
 
-        modelBuilder.Entity<TaskPayment>().Property(x => x.AmountPaid).HasColumnType("decimal(18,2)");
+        modelBuilder.Entity<TaskPayment>().Property(x => x.AmountPaid).HasColumnType("numeric(18,2)");
         modelBuilder.Entity<TaskPayment>().Property(x => x.PaymentMode).HasMaxLength(50);
         modelBuilder.Entity<TaskPayment>().Property(x => x.PaymentStatus).HasMaxLength(20).HasDefaultValue("Pending");
 
@@ -68,6 +68,6 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Notification>().Property(x => x.Message).HasMaxLength(500);
         modelBuilder.Entity<Notification>().Property(x => x.Type).HasMaxLength(50);
         modelBuilder.Entity<Notification>().Property(x => x.IsRead).HasDefaultValue(false);
-        modelBuilder.Entity<Notification>().Property(x => x.CreatedAt).HasDefaultValueSql("GETDATE()");
+        modelBuilder.Entity<Notification>().Property(x => x.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
     }
 }
