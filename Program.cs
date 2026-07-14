@@ -15,6 +15,8 @@ builder.Services.AddScoped<EmailSender>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddHostedService<ReminderService>();
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+Console.WriteLine($"Using DB: {connectionString}");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(
         builder.Configuration.GetConnectionString("DefaultConnection")));
