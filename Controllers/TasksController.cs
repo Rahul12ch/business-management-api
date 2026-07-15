@@ -15,6 +15,10 @@ public class TasksController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly EmailService _emailService;
+    private static readonly TimeZoneInfo IndiaTimeZone =
+    OperatingSystem.IsWindows()
+        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
+        : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
     public TasksController(AppDbContext context, EmailService emailService)
     {
         _context = context; _emailService = emailService;
@@ -64,17 +68,20 @@ public class TasksController : ControllerBase
     {
         if (task.CustomerId <= 0) return BadRequest();
         var last = await _context.Tasks.OrderByDescending(x => x.OrderNo).FirstOrDefaultAsync();
-        task.OrderNo = last == null ? 1001 : last.OrderNo + 1; task.CreatedDate = DateTime.Now; task.TotalAmount = task.GrandTotal;
+        task.OrderNo = last == null ? 1001 : last.OrderNo + 1; var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        task.CreatedDate = indiaNow; task.TotalAmount = task.GrandTotal;
         task.Status = string.IsNullOrWhiteSpace(task.Status) ? "Pending" : task.Status; task.Customer = null;
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
         var created = await LoadTask(task.TaskId);
         _context.Notifications.Add(new Notification
         { Title = "Customer Added", Message = $"{created!.Customer?.CustomerName} added for Order #{created.OrderNo}.",
-          Type = "Customer", ReferenceId = created.CustomerId, IsRead = false, CreatedAt = DateTime.Now });
+          Type = "Customer", ReferenceId = created.CustomerId, IsRead = false, CreatedAt = indiaNow
+        });
         _context.Notifications.Add(new Notification
         { Title = "Task Created", Message = $"Order #{created.OrderNo} created for {created.Customer?.CustomerName}.",
-          Type = "Task", ReferenceId = created.TaskId, IsRead = false, CreatedAt = DateTime.Now });
+          Type = "Task", ReferenceId = created.TaskId, IsRead = false, CreatedAt = indiaNow
+        });
         await _context.SaveChangesAsync();
         try
         { await _emailService.SendTaskCreatedAsync( created!, CreateInvoiceDto(created!)); }
@@ -87,6 +94,7 @@ public class TasksController : ControllerBase
     {
         var task = await _context.Tasks .Include(x => x.TaskDetails) .FirstOrDefaultAsync(x => x.TaskId == id);
         if (task == null) return NotFound();
+        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
         var oldStatus = task.Status; task.CustomerId = dto.CustomerId; task.TaskName = dto.TaskName; task.DueDate = dto.DueDate; task.Status = dto.Status; task.SubTotal = dto.SubTotal; 
         task.IsGstApplied = dto.IsGstApplied; task.GstPercent = dto.GstPercent; task.GstAmount = dto.GstAmount; task.GrandTotal = dto.GrandTotal; task.TotalAmount = dto.GrandTotal;
         if (task.TaskDetails != null) _context.TaskDetails.RemoveRange(task.TaskDetails);
@@ -104,14 +112,14 @@ public class TasksController : ControllerBase
         {
             _context.TaskPayments.Add(new TaskPayment
             {
-               TaskId = id, AmountPaid = dto.PaidAmount, PaymentDate = DateTime.Now, PaymentMode = dto.PaymentMode, PaymentStatus = paymentStatus
+               TaskId = id, AmountPaid = dto.PaidAmount, PaymentDate = indiaNow, PaymentMode = dto.PaymentMode, PaymentStatus = paymentStatus
             });
         }
         await _context.SaveChangesAsync();
         var updated = await LoadTask(id);
         _context.Notifications.Add(new Notification
         { Title = "Task Updated", Message = $"Order #{updated!.OrderNo} updated. Status changed from {oldStatus} to {updated.Status}.",
-          Type = "Task", ReferenceId = updated.TaskId, IsRead = false, CreatedAt = DateTime.Now });
+          Type = "Task", ReferenceId = updated.TaskId, IsRead = false, CreatedAt = indiaNow });
         await _context.SaveChangesAsync();
         try
         {
@@ -124,11 +132,12 @@ public class TasksController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteTask(int id)
     {
+        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
         var task = await _context.Tasks .Include(x => x.Customer) .Include(x => x.TaskDetails) .Include(x => x.TaskPayments) .FirstOrDefaultAsync( x => x.TaskId == id );
         if (task == null) return NotFound();
         _context.Notifications.Add( new Notification
         { Title = "Task Deleted", Message = $"Order #{task.OrderNo} for {task.Customer?.CustomerName} deleted.",
-          Type = "Task", ReferenceId = task.TaskId, IsRead = false, CreatedAt = DateTime.Now });
+          Type = "Task", ReferenceId = task.TaskId, IsRead = false, CreatedAt = indiaNow });
         if (task.TaskPayments?.Any() == true)
         { _context.TaskPayments.RemoveRange( task.TaskPayments ); }
         if (task.TaskDetails?.Any() == true)
@@ -169,7 +178,8 @@ public class TasksController : ControllerBase
         var paid = task.TaskPayments? .Sum(x => x.AmountPaid) ?? 0;
         return new InvoiceDto
         {
-            OrderNo = task.OrderNo, InvoiceDate = DateTime.Now, CustomerName = task.Customer?.CustomerName ?? "", PhoneNumber = task.Customer?.PhoneNumber ?? "",
+            OrderNo = task.OrderNo, InvoiceDate = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone),
+            CustomerName = task.Customer?.CustomerName ?? "", PhoneNumber = task.Customer?.PhoneNumber ?? "",
             Email = task.Customer?.Email ?? "", Address = task.Customer?.Address ?? "", TaskName = task.TaskName, SubTotal = task.SubTotal,
             IsGstApplied = task.IsGstApplied, GstPercent = task.GstPercent, GstAmount = task.GstAmount, GrandTotal = task.GrandTotal,
             PaymentStatus = paid <= 0 ? "Pending" : paid < task.GrandTotal ? "Partial" : "Paid", Items = task.TaskDetails?

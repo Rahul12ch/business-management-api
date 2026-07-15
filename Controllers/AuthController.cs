@@ -18,6 +18,9 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IConfiguration _configuration;
+    private static readonly TimeZoneInfo IndiaTimeZone =
+    OperatingSystem.IsWindows()
+        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time") : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
 
     public AuthController( AppDbContext context, IConfiguration configuration)
     
@@ -42,7 +45,7 @@ public class AuthController : ControllerBase
         { return BadRequest("Email already exists"); }
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
-        user.CreatedDate = DateTime.UtcNow; _context.Users.Add(user);
+        user.CreatedDate = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow,IndiaTimeZone); _context.Users.Add(user);
         await _context.SaveChangesAsync();
         return Ok(new
         {
@@ -58,12 +61,8 @@ public class AuthController : ControllerBase
     {
         var user = await _context.Users .FirstOrDefaultAsync(x => x.Email == model.Email);
         if (user == null)  return Unauthorized("Invalid Email");
-
-        bool valid = BCrypt.Net.BCrypt.Verify(
-         model.PasswordHash, user.PasswordHash);
-
+        bool valid = BCrypt.Net.BCrypt.Verify( model.PasswordHash, user.PasswordHash);
         if (!valid) return Unauthorized("Invalid Password");
-
         var claims = new[]
         {
             new Claim( ClaimTypes.Name, user.Username),
@@ -72,10 +71,9 @@ public class AuthController : ControllerBase
         var key = new SymmetricSecurityKey(  Encoding.UTF8.GetBytes( _configuration["Jwt:Key"]!));
         var creds = new SigningCredentials(  key,  SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(  issuer: _configuration["Jwt:Issuer"],
-         
             audience: _configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.Now.AddDays(7),
+            expires: DateTime.UtcNow.AddDays(7),
             signingCredentials: creds);
         return Ok(new
         {

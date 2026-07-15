@@ -12,6 +12,10 @@ namespace client.Controllers;
 public class PaymentsController : ControllerBase
 {
     private readonly AppDbContext _context;
+    private static readonly TimeZoneInfo IndiaTimeZone =
+    OperatingSystem.IsWindows()
+        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
+        : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
     public PaymentsController(AppDbContext context)
     {  _context = context; }
 
@@ -55,16 +59,16 @@ public class PaymentsController : ControllerBase
     {
         var task = await _context.Tasks.Include(x => x.Customer).FirstOrDefaultAsync( x => x.TaskId == payment.TaskId );
         if (task == null) return BadRequest("Task not found");
+        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
         decimal balance = Math.Max(0, task.GrandTotal - payment.AmountPaid);
-        payment.PaymentDate = DateTime.Now;
+        payment.PaymentDate = indiaNow;
         if (string.IsNullOrWhiteSpace(payment.PaymentStatus)) payment.PaymentStatus = "Pending";
         _context.TaskPayments.Add(payment);
         await _context.SaveChangesAsync();
         _context.Notifications.Add(new Notification
         {
         Title = "Payment Received", Message = $"₹{payment.AmountPaid:N2} received via {payment.PaymentMode} from {task.Customer?.CustomerName} for Order #{task.OrderNo}.",
-
-            Type = "Payment", ReferenceId = payment.PaymentId, IsRead = false, CreatedAt = DateTime.Now });
+            Type = "Payment", ReferenceId = payment.PaymentId, IsRead = false, CreatedAt = indiaNow });
         await _context.SaveChangesAsync();
         return Ok(new
         { payment.PaymentId, payment.TaskId, payment.AmountPaid, payment.PaymentDate, payment.PaymentMode, payment.PaymentStatus });
@@ -78,13 +82,13 @@ public class PaymentsController : ControllerBase
         if (existingPayment == null) return NotFound("Payment not found");
         var task = await _context.Tasks.FindAsync(existingPayment.TaskId);
         if (task == null) return BadRequest("Task not found");
-
+        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
         existingPayment.AmountPaid = payment.AmountPaid; existingPayment.PaymentMode = payment.PaymentMode; existingPayment.PaymentStatus = payment.PaymentStatus;
         decimal balance = Math.Max( 0, task.GrandTotal - existingPayment.AmountPaid);
         _context.Notifications.Add(new Notification
         {
             Title = "Payment Updated", Message = $"Payment for Order #{task.OrderNo} updated.",
-            Type = "Payment", ReferenceId = existingPayment.PaymentId, IsRead = false, CreatedAt = DateTime.Now });
+            Type = "Payment", ReferenceId = existingPayment.PaymentId, IsRead = false, CreatedAt = indiaNow });
         await _context.SaveChangesAsync();
         return Ok(new
         {

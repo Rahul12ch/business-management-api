@@ -4,12 +4,15 @@ namespace client.Templates
 {
     public static class SummaryTemplates
     {
+        private static readonly TimeZoneInfo IndiaTimeZone = OperatingSystem.IsWindows()
+        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
+        : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
         public static EmailMessage Daily( int customers, int tasksCreated, int tasksCompleted, decimal payments, decimal pending)
         {
             return EmailLayout.Create( "Daily Business Summary", "Daily Summary",
                 new Dictionary<string, string>
                 {
-                    { "Date", DateTime.Now.ToString("dd MMM yyyy") },
+                    { "Date", TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone ).ToString("dd MMM yyyy")},
                     { "Customers", customers.ToString() },
                     { "Tasks Created", tasksCreated.ToString() },
                     { "Tasks Completed", tasksCompleted.ToString() },
@@ -23,7 +26,7 @@ namespace client.Templates
             return EmailLayout.Create( "Weekly Business Summary", "Weekly Summary",
                 new Dictionary<string, string>
                 {
-                    { "Week Ending", DateTime.Now.ToString("dd MMM yyyy") },
+                    { "Week Ending", TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone ).ToString("dd MMM yyyy") },
                     { "Customers", customers.ToString() },
                     { "Tasks", tasks.ToString() },
                     { "Completed Tasks", completed.ToString() },
@@ -37,7 +40,7 @@ namespace client.Templates
             return EmailLayout.Create( "Monthly Business Summary", "Monthly Summary",
                 new Dictionary<string, string>
                 {
-                    { "Month", DateTime.Now.ToString("MMMM yyyy") },
+                    { "Month", TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone).ToString("MMMM yyyy") },
                     { "Customers", customers.ToString() },
                     { "Tasks", tasks.ToString() },
                     { "Completed Tasks", completed.ToString() },

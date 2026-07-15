@@ -14,6 +14,8 @@ namespace client.Controllers
         private readonly AppDbContext _context;
         private readonly IWebHostEnvironment _env;
         private readonly PdfService _pdfService;
+        private static readonly TimeZoneInfo IndiaTimeZone =
+        OperatingSystem.IsWindows() ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time") : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
         public InvoiceController( AppDbContext context, EmailSender emailSender, IWebHostEnvironment env, PdfService pdfService )
         {
             _context = context; _env = env; _pdfService = pdfService;
@@ -39,10 +41,11 @@ namespace client.Controllers
             var task = await _context.Tasks
          .Include(t => t.Customer) .Include(t => t.TaskDetails) .Include(t => t.TaskPayments) .FirstOrDefaultAsync( t => t.TaskId == taskId);
             if (task == null) return null;
+            var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
             var paidAmount = task.TaskPayments .Sum(x => x.AmountPaid);
             var invoice = new InvoiceDto
                 {
-                    OrderNo = task.OrderNo, InvoiceDate = DateTime.Now, CustomerName = task.Customer?.CustomerName ?? "", PhoneNumber = task.Customer?.PhoneNumber ?? "",
+                    OrderNo = task.OrderNo, InvoiceDate = indiaNow, CustomerName = task.Customer?.CustomerName ?? "", PhoneNumber = task.Customer?.PhoneNumber ?? "",
                     Email = task.Customer?.Email ?? "", Address = task.Customer?.Address ?? "", TaskName = task.TaskName, IsGstApplied = task.IsGstApplied,
                     SubTotal =task.SubTotal, GstPercent = task.GstPercent, GstAmount = task.GstAmount, GrandTotal = task.GrandTotal,
                     PaymentStatus =paidAmount <= 0 ? "Pending" : paidAmount < task.GrandTotal ? "Partial" : "Paid",  Items = task.TaskDetails
@@ -56,7 +59,7 @@ namespace client.Controllers
                 new client.Models.Notification
                 {
                     Title = "Invoice Generated", Message =  $"Invoice generated for Order #{task.OrderNo}.",
-                    Type = "Invoice", ReferenceId = task.TaskId, IsRead = false, CreatedAt = DateTime.Now
+                    Type = "Invoice", ReferenceId = task.TaskId, IsRead = false, CreatedAt = indiaNow
                 });
             await _context.SaveChangesAsync();
             return invoice;
