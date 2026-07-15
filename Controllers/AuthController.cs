@@ -42,7 +42,7 @@ public class AuthController : ControllerBase
         { return BadRequest("Email already exists"); }
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
-        user.CreatedDate = DateTime.Now; _context.Users.Add(user);
+        user.CreatedDate = DateTime.UtcNow; _context.Users.Add(user);
         await _context.SaveChangesAsync();
         return Ok(new
         {
