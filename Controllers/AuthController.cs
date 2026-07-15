@@ -36,12 +36,12 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register(User user)
     {
         if (await _context.Users.AnyAsync(x => x.Username == user.Username))
-        {  return BadRequest("Username already exists"); }
+        { return BadRequest("Username already exists"); }
 
         if (await _context.Users.AnyAsync(x => x.Email == user.Email))
         { return BadRequest("Email already exists"); }
 
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword( user.PasswordHash);
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
         user.CreatedDate = DateTime.Now; _context.Users.Add(user);
         await _context.SaveChangesAsync();
         return Ok(new
