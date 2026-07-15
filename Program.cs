@@ -39,14 +39,12 @@ builder.Services.AddCors(options =>
     });
 });
 var app = builder.Build();
-app.UseSwagger();
-app.UseSwaggerUI();
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
-    app.UseSwagger();
-    app.UseSwaggerUI();
 }
+app.UseSwagger();
+app.UseSwaggerUI();
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();
