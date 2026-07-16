@@ -86,16 +86,21 @@ public class TasksController : ControllerBase
         });
         await _context.SaveChangesAsync();
         Console.WriteLine("Before Email");
-        try
+        _ = Task.Run(async () =>
         {
-            await _emailService.SendTaskCreatedAsync(created!, CreateInvoiceDto(created!));
-            Console.WriteLine("After Email");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine(ex);
-        }
-        Console.WriteLine("Returning Response");
+            try
+            {
+                await _emailService.SendTaskCreatedAsync(
+                    created!,
+                    CreateInvoiceDto(created!)
+                );
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex);
+            }
+        });
+
         return Ok(CreateResponse(created!));
     }
     [HttpPut("{id}")]
