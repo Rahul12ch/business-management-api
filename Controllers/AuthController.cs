@@ -1,7 +1,6 @@
-﻿
-using client.Data;
+﻿using client.Data;
 using client.Models;
-using Microsoft.AspNetCore.Http;
+using client.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,9 +17,6 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IConfiguration _configuration;
-    private static readonly TimeZoneInfo IndiaTimeZone =
-    OperatingSystem.IsWindows()
-        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time") : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
 
     public AuthController( AppDbContext context, IConfiguration configuration)
     
@@ -45,7 +41,7 @@ public class AuthController : ControllerBase
         { return BadRequest("Email already exists"); }
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
-        user.CreatedDate = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow,IndiaTimeZone); _context.Users.Add(user);
+        user.CreatedDate = DateTimeHelper.UtcNow(); _context.Users.Add(user);
         await _context.SaveChangesAsync();
         return Ok(new
         {
@@ -73,7 +69,7 @@ public class AuthController : ControllerBase
         var token = new JwtSecurityToken(  issuer: _configuration["Jwt:Issuer"],
             audience: _configuration["Jwt:Audience"],
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(7),
+           expires: DateTimeHelper.UtcNow().AddDays(7),
             signingCredentials: creds);
         return Ok(new
         {
@@ -93,7 +89,7 @@ public class AuthController : ControllerBase
         if (user == null)  return NotFound();
         return Ok(new
         {
-         user.Id, user.Username,user.Email,user.CreatedDate, user.ProfileImage });
+         user.Id, user.Username,user.Email, CreatedDate = DateTimeHelper.ToIndia(user.CreatedDate), user.ProfileImage });
     }
     [Authorize]
     [HttpPut("profile")]

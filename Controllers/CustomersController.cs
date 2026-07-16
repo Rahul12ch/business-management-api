@@ -1,6 +1,7 @@
 ﻿using client.Data;
 using client.Models;
 using client.Services;
+using client.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -13,9 +14,6 @@ namespace client.Controllers;
 public class CustomersController : ControllerBase
 {
     private readonly AppDbContext _context;
-    private static readonly TimeZoneInfo IndiaTimeZone =
-    OperatingSystem.IsWindows()
-        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time") : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
     public CustomersController( AppDbContext context, EmailSender emailSender)
     {
         _context = context;
@@ -58,11 +56,11 @@ public class CustomersController : ControllerBase
     {
         if (string.IsNullOrWhiteSpace(customer.CustomerName))  return BadRequest("Customer name is required");
         if (string.IsNullOrWhiteSpace(customer.PhoneNumber))   return BadRequest("Phone number is required");
-        _context.Customers.Add(customer); var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        _context.Customers.Add(customer); var utcNow = DateTimeHelper.UtcNow();
         _context.Notifications.Add(new Notification
         {
          Title = "Customer Added", Message = $"{customer.CustomerName} added.",
-         Type = "Customer", ReferenceId = customer.CustomerId, IsRead = false, CreatedAt = indiaNow });
+         Type = "Customer", ReferenceId = customer.CustomerId, IsRead = false, CreatedAt = utcNow });
         await _context.SaveChangesAsync();
         return Ok(customer);
     }
@@ -71,7 +69,7 @@ public class CustomersController : ControllerBase
     {
         if (id != customer.CustomerId) return BadRequest("Customer ID mismatch");
         var existingCustomer = await _context.Customers.FindAsync(id);
-        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        var utcNow = DateTimeHelper.UtcNow();
         if (existingCustomer == null)  return NotFound("Customer not found");
         existingCustomer.CustomerName = customer.CustomerName;
         existingCustomer.PhoneNumber = customer.PhoneNumber;
@@ -79,7 +77,7 @@ public class CustomersController : ControllerBase
         existingCustomer.Address = customer.Address;
         _context.Notifications.Add(new Notification
         { Title = "Customer Updated", Message = $"{existingCustomer.CustomerName} details updated.",
-          Type = "Customer", ReferenceId = existingCustomer.CustomerId, IsRead = false, CreatedAt = indiaNow });
+          Type = "Customer", ReferenceId = existingCustomer.CustomerId, IsRead = false, CreatedAt = utcNow });
         await _context.SaveChangesAsync();
         return Ok(existingCustomer);
     }
@@ -88,7 +86,7 @@ public class CustomersController : ControllerBase
     {
         var customer = await _context.Customers .Include(c => c.Tasks) .ThenInclude(t => t.TaskPayments) .Include(c => c.Tasks) .ThenInclude(t => t.TaskDetails).FirstOrDefaultAsync(c => c.CustomerId == id);
         if (customer == null) return NotFound("Customer not found");
-        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        var utcNow = DateTimeHelper.UtcNow();
         var taskCount = customer.Tasks?.Count ?? 0;
         if (customer.Tasks?.Any() == true)
         {
@@ -103,7 +101,7 @@ public class CustomersController : ControllerBase
         _context.Notifications.Add(new Notification
         {
         Title = "Customer Deleted", Message = $"{customer.CustomerName} deleted.",
-        Type = "Customer", ReferenceId = customer.CustomerId, IsRead = false, CreatedAt = indiaNow });
+        Type = "Customer", ReferenceId = customer.CustomerId, IsRead = false, CreatedAt = utcNow });
         await _context.SaveChangesAsync();
         return Ok(new
         {

@@ -16,8 +16,7 @@ namespace client.Services
         public async Task SendAsync( EmailMessage message)
         {
             var email = new MimeMessage();
-            email.From.Add( new MailboxAddress(
-             _settings.DisplayName,  _settings.From));
+            email.From.Add( new MailboxAddress( _settings.DisplayName,  _settings.From));
             if (!string.IsNullOrWhiteSpace(message.To))
             {
                 email.To.Add( MailboxAddress.Parse(message.To));
@@ -25,9 +24,7 @@ namespace client.Services
             else
             {
                 foreach (var admin in _settings.AdminEmails)
-                {
-                    email.To.Add( MailboxAddress.Parse(admin));
-                }
+                {  email.To.Add( MailboxAddress.Parse(admin)); }
             }
             email.Subject = message.Subject;
             var body = new BodyBuilder();
@@ -52,7 +49,6 @@ namespace client.Services
             await smtp.ConnectAsync( _settings.Host, _settings.Port, SecureSocketOptions.StartTls);
             await smtp.AuthenticateAsync(  _settings.Username,  _settings.Password);
             await smtp.SendAsync(email);
-
             await smtp.DisconnectAsync(true);
         }
     }

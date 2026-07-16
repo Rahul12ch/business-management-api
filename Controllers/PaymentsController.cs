@@ -1,6 +1,6 @@
 ﻿using client.Data;
 using client.Models;
-using client.Services;
+using client.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,10 +12,6 @@ namespace client.Controllers;
 public class PaymentsController : ControllerBase
 {
     private readonly AppDbContext _context;
-    private static readonly TimeZoneInfo IndiaTimeZone =
-    OperatingSystem.IsWindows()
-        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
-        : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
     public PaymentsController(AppDbContext context)
     {  _context = context; }
 
@@ -33,7 +29,7 @@ public class PaymentsController : ControllerBase
         }
         var totalRecords = await query.CountAsync();
         var payments = await query .OrderByDescending(p => p.PaymentDate) .Skip((page - 1) * pageSize) .Take(pageSize) .Select(p => new
-        { p.PaymentId, p.TaskId, p.AmountPaid, p.PaymentDate, p.PaymentMode, p.PaymentStatus,
+        { p.PaymentId, p.TaskId, p.AmountPaid, PaymentDate = DateTimeHelper.ToIndia(p.PaymentDate), p.PaymentMode, p.PaymentStatus,
           TaskName = p.Task != null ? p.Task.TaskName : "", Customer = p.Task != null && p.Task.Customer != null  ? p.Task.Customer.CustomerName : "" })
          .ToListAsync();
         return Ok(new
@@ -49,7 +45,8 @@ public class PaymentsController : ControllerBase
         .Include(p => p.Task) .ThenInclude(t => t!.Customer) .FirstOrDefaultAsync(p => p.PaymentId == id);
         if (payment == null)  return NotFound("Payment not found");
         return Ok(new
-        { payment.PaymentId, payment.TaskId, payment.AmountPaid, payment.PaymentDate,payment.PaymentMode, payment.PaymentStatus,
+        { payment.PaymentId, payment.TaskId, payment.AmountPaid,
+            PaymentDate = DateTimeHelper.ToIndia(payment.PaymentDate), payment.PaymentMode, payment.PaymentStatus,
           TaskName = payment.Task?.TaskName ?? "", CustomerName = payment.Task?.Customer?.CustomerName ?? ""
         });
     }
@@ -59,20 +56,20 @@ public class PaymentsController : ControllerBase
     {
         var task = await _context.Tasks.Include(x => x.Customer).FirstOrDefaultAsync( x => x.TaskId == payment.TaskId );
         if (task == null) return BadRequest("Task not found");
-        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        var utcNow = DateTimeHelper.UtcNow();
         decimal balance = Math.Max(0, task.GrandTotal - payment.AmountPaid);
-        payment.PaymentDate = indiaNow;
+        payment.PaymentDate = utcNow;
         if (string.IsNullOrWhiteSpace(payment.PaymentStatus)) payment.PaymentStatus = "Pending";
         _context.TaskPayments.Add(payment);
         await _context.SaveChangesAsync();
         _context.Notifications.Add(new Notification
         {
         Title = "Payment Received", Message = $"₹{payment.AmountPaid:N2} received via {payment.PaymentMode} from {task.Customer?.CustomerName} for Order #{task.OrderNo}.",
-            Type = "Payment", ReferenceId = payment.PaymentId, IsRead = false, CreatedAt = indiaNow });
+            Type = "Payment", ReferenceId = payment.PaymentId, IsRead = false, CreatedAt = utcNow });
         await _context.SaveChangesAsync();
         return Ok(new
-        { payment.PaymentId, payment.TaskId, payment.AmountPaid, payment.PaymentDate, payment.PaymentMode, payment.PaymentStatus });
-    }
+        { payment.PaymentId, payment.TaskId, payment.AmountPaid, PaymentDate = DateTimeHelper.ToIndia(payment.PaymentDate),
+          payment.PaymentMode, payment.PaymentStatus }); }
 
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdatePayment(int id, TaskPayment payment)
@@ -82,17 +79,18 @@ public class PaymentsController : ControllerBase
         if (existingPayment == null) return NotFound("Payment not found");
         var task = await _context.Tasks.FindAsync(existingPayment.TaskId);
         if (task == null) return BadRequest("Task not found");
-        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        var utcNow = DateTimeHelper.UtcNow();
         existingPayment.AmountPaid = payment.AmountPaid; existingPayment.PaymentMode = payment.PaymentMode; existingPayment.PaymentStatus = payment.PaymentStatus;
         decimal balance = Math.Max( 0, task.GrandTotal - existingPayment.AmountPaid);
         _context.Notifications.Add(new Notification
         {
             Title = "Payment Updated", Message = $"Payment for Order #{task.OrderNo} updated.",
-            Type = "Payment", ReferenceId = existingPayment.PaymentId, IsRead = false, CreatedAt = indiaNow });
+            Type = "Payment", ReferenceId = existingPayment.PaymentId, IsRead = false, CreatedAt = utcNow });
         await _context.SaveChangesAsync();
         return Ok(new
         {
-        existingPayment.PaymentId, existingPayment.TaskId, existingPayment.AmountPaid, existingPayment.PaymentDate, existingPayment.PaymentMode, existingPayment.PaymentStatus
+        existingPayment.PaymentId, existingPayment.TaskId, existingPayment.AmountPaid,
+        PaymentDate = DateTimeHelper.ToIndia(existingPayment.PaymentDate), existingPayment.PaymentMode, existingPayment.PaymentStatus
         });
     }
 
