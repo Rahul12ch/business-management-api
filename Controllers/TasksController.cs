@@ -85,13 +85,17 @@ public class TasksController : ControllerBase
           Type = "Task", ReferenceId = created.TaskId, IsRead = false, CreatedAt = utcNow
         });
         await _context.SaveChangesAsync();
-        Console.WriteLine($"Notifications saved : {sw.ElapsedMilliseconds} ms");
+        Console.WriteLine("Before Email");
         try
-        { await _emailService.SendTaskCreatedAsync( created!, CreateInvoiceDto(created!)); 
-        Console.WriteLine($"Email finished : {sw.ElapsedMilliseconds} ms"); }
+        {
+            await _emailService.SendTaskCreatedAsync(created!, CreateInvoiceDto(created!));
+            Console.WriteLine("After Email");
+        }
         catch (Exception ex)
-        { Console.WriteLine(ex.Message); }
-        Console.WriteLine($"Completed : {sw.ElapsedMilliseconds} ms");
+        {
+            Console.WriteLine(ex);
+        }
+        Console.WriteLine("Returning Response");
         return Ok(CreateResponse(created!));
     }
     [HttpPut("{id}")]

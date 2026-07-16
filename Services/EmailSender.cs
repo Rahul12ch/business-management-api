@@ -46,9 +46,16 @@ namespace client.Services
             }
             email.Body = body.ToMessageBody();
             using var smtp = new SmtpClient();
+            Console.WriteLine("Connecting SMTP...");
+            await smtp.ConnectAsync(_settings.Host, _settings.Port, SecureSocketOptions.StartTls);
             await smtp.ConnectAsync( _settings.Host, _settings.Port, SecureSocketOptions.StartTls);
-            await smtp.AuthenticateAsync(  _settings.Username,  _settings.Password);
+            Console.WriteLine("SMTP Connected");
+            Console.WriteLine("Authenticating...");
+            await smtp.AuthenticateAsync(_settings.Username, _settings.Password);
+            Console.WriteLine("Authenticated");
+            Console.WriteLine("Sending Email...");
             await smtp.SendAsync(email);
+            Console.WriteLine("Email Sent");
             await smtp.DisconnectAsync(true);
         }
     }
