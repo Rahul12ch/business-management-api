@@ -1,11 +1,9 @@
-﻿using client.Models;
+﻿using client.Helpers;
+using client.Models;
 namespace client.Templates
 {
     public static class AdminTemplates
     {
-        private static readonly TimeZoneInfo IndiaTimeZone =  OperatingSystem.IsWindows()
-        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
-        : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
         public static EmailMessage TaskCreated(TaskItem task)
         {
             return EmailLayout.Create(
@@ -20,8 +18,7 @@ namespace client.Templates
                     { "Task", task.TaskName },
                     { "Status", task.Status },
                     { "Amount", $"₹{task.GrandTotal:N0}" },
-                    { "Created", TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone ).ToString("dd MMM yyyy hh:mm tt")
-}
+                    { "Created", DateTimeHelper.ToIndia(DateTimeHelper.UtcNow()).ToString("dd MMM yyyy hh:mm tt") }
                 });
         }
         public static EmailMessage TaskUpdated(TaskItem task, string oldStatus)
@@ -36,7 +33,7 @@ namespace client.Templates
                     { "Old Status", oldStatus },
                     { "New Status", task.Status },
                     { "Amount", $"₹{task.GrandTotal:N0}" },
-                    { "Updated", TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone ).ToString("dd MMM yyyy hh:mm tt") }
+                    { "Updated", DateTimeHelper.ToIndia(DateTimeHelper.UtcNow()).ToString("dd MMM yyyy hh:mm tt") }
                 });
         }
     }

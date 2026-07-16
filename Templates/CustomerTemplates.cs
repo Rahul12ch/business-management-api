@@ -1,4 +1,5 @@
-﻿using client.Models;
+﻿using client.Helpers;
+using client.Models;
 
 namespace client.Templates
 {
@@ -14,7 +15,7 @@ namespace client.Templates
                 { "Address", task.Customer?.Address ?? "" },
                 { "Order No", task.OrderNo.ToString() },
                 { "Service", task.TaskName },
-                { "Created Date", task.CreatedDate.ToString("dd MMM yyyy") },
+                { "Created Date", DateTimeHelper.ToIndia(task.CreatedDate).ToString("dd MMM yyyy") },
                 { "Due Date", task.DueDate?.ToString("dd MMM yyyy") ?? "" },
                 { "Status", task.Status },
                 { "Subtotal", $"₹{task.SubTotal:N2}" },

@@ -1,5 +1,6 @@
 ﻿using client.Data;
 using client.Models;
+using client.Helpers;
 using client.Templates;
 using Microsoft.EntityFrameworkCore;
 
@@ -115,7 +116,7 @@ public class ReminderService : BackgroundService
         context.Notifications.Add(new Notification
         {
             Title = title, Message = message, Type = type, ReferenceId = id, IsRead = false,
-            CreatedAt = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone)
+            CreatedAt = DateTimeHelper.UtcNow()
         });
         await context.SaveChangesAsync();
     }

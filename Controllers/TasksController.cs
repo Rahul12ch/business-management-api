@@ -2,6 +2,7 @@
 using client.DTOs;
 using client.Models;
 using client.Services;
+using client.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -15,10 +16,6 @@ public class TasksController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly EmailService _emailService;
-    private static readonly TimeZoneInfo IndiaTimeZone =
-    OperatingSystem.IsWindows()
-        ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
-        : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
     public TasksController(AppDbContext context, EmailService emailService)
     {
         _context = context; _emailService = emailService;
@@ -37,7 +34,8 @@ public class TasksController : ControllerBase
         var data = await query 
        .OrderByDescending(x => x.OrderNo) .Skip((page - 1) * pageSize) .Take(pageSize) .Select(x => new
         {
-         x.TaskId, x.OrderNo, x.TaskName, x.CreatedDate, x.DueDate, x.Status, x.SubTotal, x.IsGstApplied, x.GstPercent, x.GstAmount, x.GrandTotal, x.TotalAmount,
+         x.TaskId, x.OrderNo, x.TaskName,CreatedDate = DateTimeHelper.ToIndia(x.CreatedDate), DueDate = x.DueDate.HasValue ? DateTimeHelper.ToIndia(x.DueDate.Value): (DateTime?)null,
+         x.Status, x.SubTotal, x.IsGstApplied, x.GstPercent, x.GstAmount, x.GrandTotal, x.TotalAmount,
          CustomerName = x.Customer != null ? x.Customer.CustomerName : "", PhoneNumber = x.Customer != null ? x.Customer.PhoneNumber : "",
          PaidAmount = x.TaskPayments == null ? 0 : x.TaskPayments.Sum(p => p.AmountPaid),
          Balance = x.GrandTotal -  (x.TaskPayments == null ? 0 : x.TaskPayments.Sum(p => p.AmountPaid)),
@@ -68,19 +66,19 @@ public class TasksController : ControllerBase
     {
         if (task.CustomerId <= 0) return BadRequest();
         var last = await _context.Tasks.OrderByDescending(x => x.OrderNo).FirstOrDefaultAsync();
-        task.OrderNo = last == null ? 1001 : last.OrderNo + 1; var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
-        task.CreatedDate = indiaNow; task.TotalAmount = task.GrandTotal;
+        task.OrderNo = last == null ? 1001 : last.OrderNo + 1; var utcNow = DateTimeHelper.UtcNow();
+        task.CreatedDate = utcNow; task.TotalAmount = task.GrandTotal;
         task.Status = string.IsNullOrWhiteSpace(task.Status) ? "Pending" : task.Status; task.Customer = null;
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
         var created = await LoadTask(task.TaskId);
         _context.Notifications.Add(new Notification
         { Title = "Customer Added", Message = $"{created!.Customer?.CustomerName} added for Order #{created.OrderNo}.",
-          Type = "Customer", ReferenceId = created.CustomerId, IsRead = false, CreatedAt = indiaNow
+          Type = "Customer", ReferenceId = created.CustomerId, IsRead = false, CreatedAt = utcNow
         });
         _context.Notifications.Add(new Notification
         { Title = "Task Created", Message = $"Order #{created.OrderNo} created for {created.Customer?.CustomerName}.",
-          Type = "Task", ReferenceId = created.TaskId, IsRead = false, CreatedAt = indiaNow
+          Type = "Task", ReferenceId = created.TaskId, IsRead = false, CreatedAt = utcNow
         });
         await _context.SaveChangesAsync();
         try
@@ -93,8 +91,7 @@ public class TasksController : ControllerBase
     public async Task<IActionResult> UpdateTask(int id, UpdateTaskDto dto)
     {
         var task = await _context.Tasks .Include(x => x.TaskDetails) .FirstOrDefaultAsync(x => x.TaskId == id);
-        if (task == null) return NotFound();
-        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        if (task == null) return NotFound(); var utcNow = DateTimeHelper.UtcNow();
         var oldStatus = task.Status; task.CustomerId = dto.CustomerId; task.TaskName = dto.TaskName; task.DueDate = dto.DueDate; task.Status = dto.Status; task.SubTotal = dto.SubTotal; 
         task.IsGstApplied = dto.IsGstApplied; task.GstPercent = dto.GstPercent; task.GstAmount = dto.GstAmount; task.GrandTotal = dto.GrandTotal; task.TotalAmount = dto.GrandTotal;
         if (task.TaskDetails != null) _context.TaskDetails.RemoveRange(task.TaskDetails);
@@ -112,14 +109,14 @@ public class TasksController : ControllerBase
         {
             _context.TaskPayments.Add(new TaskPayment
             {
-               TaskId = id, AmountPaid = dto.PaidAmount, PaymentDate = indiaNow, PaymentMode = dto.PaymentMode, PaymentStatus = paymentStatus
+               TaskId = id, AmountPaid = dto.PaidAmount, PaymentDate = utcNow, PaymentMode = dto.PaymentMode, PaymentStatus = paymentStatus
             });
         }
         await _context.SaveChangesAsync();
         var updated = await LoadTask(id);
         _context.Notifications.Add(new Notification
         { Title = "Task Updated", Message = $"Order #{updated!.OrderNo} updated. Status changed from {oldStatus} to {updated.Status}.",
-          Type = "Task", ReferenceId = updated.TaskId, IsRead = false, CreatedAt = indiaNow });
+          Type = "Task", ReferenceId = updated.TaskId, IsRead = false, CreatedAt = utcNow });
         await _context.SaveChangesAsync();
         try
         {
@@ -132,12 +129,12 @@ public class TasksController : ControllerBase
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteTask(int id)
     {
-        var indiaNow = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone);
+        var utcNow = DateTimeHelper.UtcNow();
         var task = await _context.Tasks .Include(x => x.Customer) .Include(x => x.TaskDetails) .Include(x => x.TaskPayments) .FirstOrDefaultAsync( x => x.TaskId == id );
         if (task == null) return NotFound();
         _context.Notifications.Add( new Notification
         { Title = "Task Deleted", Message = $"Order #{task.OrderNo} for {task.Customer?.CustomerName} deleted.",
-          Type = "Task", ReferenceId = task.TaskId, IsRead = false, CreatedAt = indiaNow });
+          Type = "Task", ReferenceId = task.TaskId, IsRead = false, CreatedAt = utcNow });
         if (task.TaskPayments?.Any() == true)
         { _context.TaskPayments.RemoveRange( task.TaskPayments ); }
         if (task.TaskDetails?.Any() == true)
@@ -157,7 +154,8 @@ public class TasksController : ControllerBase
         var latestPayment = task.TaskPayments? .OrderByDescending(x => x.PaymentDate) .FirstOrDefault();
         return new
         {
-        task.TaskId, task.OrderNo, task.CustomerId, task.TaskName, task.CreatedDate, task.DueDate, task.Status, task.SubTotal,
+        task.TaskId, task.OrderNo, task.CustomerId, task.TaskName, CreatedDate = DateTimeHelper.ToIndia(task.CreatedDate),
+        DueDate = task.DueDate.HasValue ? DateTimeHelper.ToIndia(task.DueDate.Value) : (DateTime?)null, task.Status, task.SubTotal,
         task.IsGstApplied, task.GstPercent, task.GstAmount, task.GrandTotal, task.TotalAmount,
         CustomerName =  task.Customer?.CustomerName ?? "", PhoneNumber = task.Customer?.PhoneNumber ?? "",
         PaidAmount = paid, Balance = Math.Max( 0, task.GrandTotal - paid), PaymentMode = latestPayment?.PaymentMode ?? "N/A",
@@ -170,7 +168,7 @@ public class TasksController : ControllerBase
            TaskPayments =  task.TaskPayments?
          .Select(x => new
             {
-          x.PaymentId, x.TaskId, x.AmountPaid, x.PaymentDate, x.PaymentMode, x.PaymentStatus })
+          x.PaymentId, x.TaskId, x.AmountPaid, PaymentDate = DateTimeHelper.ToIndia(x.PaymentDate), x.PaymentMode, x.PaymentStatus })
            .ToList() ?? new() };
     }
     private InvoiceDto CreateInvoiceDto(TaskItem task)
@@ -178,7 +176,7 @@ public class TasksController : ControllerBase
         var paid = task.TaskPayments? .Sum(x => x.AmountPaid) ?? 0;
         return new InvoiceDto
         {
-            OrderNo = task.OrderNo, InvoiceDate = TimeZoneInfo.ConvertTimeFromUtc( DateTime.UtcNow, IndiaTimeZone),
+            OrderNo = task.OrderNo, InvoiceDate = DateTimeHelper.ToIndia(DateTimeHelper.UtcNow()),
             CustomerName = task.Customer?.CustomerName ?? "", PhoneNumber = task.Customer?.PhoneNumber ?? "",
             Email = task.Customer?.Email ?? "", Address = task.Customer?.Address ?? "", TaskName = task.TaskName, SubTotal = task.SubTotal,
             IsGstApplied = task.IsGstApplied, GstPercent = task.GstPercent, GstAmount = task.GstAmount, GrandTotal = task.GrandTotal,
