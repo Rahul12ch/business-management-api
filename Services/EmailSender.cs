@@ -73,10 +73,11 @@ namespace client.Services
                 Console.WriteLine("Connecting SMTP...");
 
                 await smtp.ConnectAsync(
-    _settings.Host,
-    _settings.Port,
-    SecureSocketOptions.StartTls,
-    cts.Token);
+      _settings.Host,
+      _settings.Port,
+      SecureSocketOptions.SslOnConnect,
+      cts.Token);
+
 
                 Console.WriteLine("SMTP Connected");
 
