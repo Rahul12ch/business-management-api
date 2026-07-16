@@ -2,6 +2,7 @@
 using client.DTOs;
 using client.Models;
 using client.Services;
+using System.Diagnostics;
 using client.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -64,6 +65,7 @@ public class TasksController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> AddTask(TaskItem task)
     {
+        var sw = Stopwatch.StartNew(); Console.WriteLine("Task Save Started");
         if (task.CustomerId <= 0) return BadRequest();
         var last = await _context.Tasks.OrderByDescending(x => x.OrderNo).FirstOrDefaultAsync();
         task.OrderNo = last == null ? 1001 : last.OrderNo + 1; var utcNow = DateTimeHelper.UtcNow();
@@ -71,7 +73,9 @@ public class TasksController : ControllerBase
         task.Status = string.IsNullOrWhiteSpace(task.Status) ? "Pending" : task.Status; task.Customer = null;
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
+        Console.WriteLine($"Task saved : {sw.ElapsedMilliseconds} ms");
         var created = await LoadTask(task.TaskId);
+        Console.WriteLine($"Task loaded : {sw.ElapsedMilliseconds} ms");
         _context.Notifications.Add(new Notification
         { Title = "Customer Added", Message = $"{created!.Customer?.CustomerName} added for Order #{created.OrderNo}.",
           Type = "Customer", ReferenceId = created.CustomerId, IsRead = false, CreatedAt = utcNow
@@ -81,10 +85,13 @@ public class TasksController : ControllerBase
           Type = "Task", ReferenceId = created.TaskId, IsRead = false, CreatedAt = utcNow
         });
         await _context.SaveChangesAsync();
+        Console.WriteLine($"Notifications saved : {sw.ElapsedMilliseconds} ms");
         try
-        { await _emailService.SendTaskCreatedAsync( created!, CreateInvoiceDto(created!)); }
+        { await _emailService.SendTaskCreatedAsync( created!, CreateInvoiceDto(created!)); 
+        Console.WriteLine($"Email finished : {sw.ElapsedMilliseconds} ms"); }
         catch (Exception ex)
         { Console.WriteLine(ex.Message); }
+        Console.WriteLine($"Completed : {sw.ElapsedMilliseconds} ms");
         return Ok(CreateResponse(created!));
     }
     [HttpPut("{id}")]
@@ -123,7 +130,7 @@ public class TasksController : ControllerBase
             await _emailService.SendTaskUpdatedAsync(  updated!, CreateInvoiceDto(updated!), oldStatus);
         }
         catch (Exception ex)
-        { Console.WriteLine(ex.Message); }
+        { Console.WriteLine(ex); }
         return Ok(CreateResponse(updated!));
     }
     [HttpDelete("{id}")]
