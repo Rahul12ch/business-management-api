@@ -71,10 +71,11 @@ namespace client.Services
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
 
                 Console.WriteLine("Connecting SMTP...");
+
                 await smtp.ConnectAsync(
                     _settings.Host,
                     _settings.Port,
-                    SecureSocketOptions.StartTls,
+                    SecureSocketOptions.Auto,
                     cts.Token);
 
                 Console.WriteLine("SMTP Connected");
