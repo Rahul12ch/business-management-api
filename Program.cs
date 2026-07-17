@@ -1,5 +1,6 @@
 using client.Data;
 using client.Models;
+using Resend;
 using client.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -12,16 +13,16 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<EmailSettings>( builder.Configuration.GetSection("Email"));
+builder.Services.AddResend(options =>
+{
+    options.ApiToken = builder.Configuration["Email:ApiKey"]!;
+});
 builder.Services.AddScoped<EmailSender>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddHostedService<ReminderService>();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-Console.WriteLine("================================");
-Console.WriteLine(connectionString);
-Console.WriteLine("================================");
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services .AddAuthentication( JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {
@@ -45,9 +46,9 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
-app.UseSwagger();
-app.UseSwaggerUI();
 app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseRouting();

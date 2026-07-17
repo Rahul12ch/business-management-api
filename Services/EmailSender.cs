@@ -1,111 +1,57 @@
 ﻿using client.Models;
-using MailKit.Net.Smtp;
-using MailKit.Security;
 using Microsoft.Extensions.Options;
-using MimeKit;
+using Resend;
 
 namespace client.Services
 {
     public class EmailSender
     {
+        private readonly IResend _resend;
         private readonly EmailSettings _settings;
-
-        public EmailSender(IOptions<EmailSettings> options)
+        public EmailSender( IResend resend, IOptions<EmailSettings> options)
         {
+            _resend = resend;
             _settings = options.Value;
         }
-
-        public async Task SendAsync(EmailMessage message)
+        public async Task SendAsync(client.Models.EmailMessage message)
         {
-            var email = new MimeMessage();
-
-            email.From.Add(new MailboxAddress(
-                _settings.DisplayName,
-                _settings.From));
-
-            if (!string.IsNullOrWhiteSpace(message.To))
+            var email = new Resend.EmailMessage
             {
-                email.To.Add(MailboxAddress.Parse(message.To));
-            }
+                Subject = message.Subject
+            };
+          
+            email.From = $"{_settings.DisplayName} <{_settings.From}>";
+            if (!string.IsNullOrWhiteSpace(message.To))
+            { email.To.Add(message.To); }
             else
             {
                 foreach (var admin in _settings.AdminEmails)
-                {
-                    email.To.Add(MailboxAddress.Parse(admin));
-                }
+                { email.To.Add(admin); }
             }
 
-            email.Subject = message.Subject;
-
-            var body = new BodyBuilder();
-
-            if (message.IsHtml)
-                body.HtmlBody = message.Body;
-            else
-                body.TextBody = message.Body;
+            if (message.IsHtml) email.HtmlBody = message.Body;
+            else email.TextBody = message.Body;
 
             if (!string.IsNullOrWhiteSpace(message.AttachmentPath))
             {
-                body.Attachments.Add(message.AttachmentPath);
+                email.Attachments ??= new List<EmailAttachment>();
+                email.Attachments.Add( EmailAttachment.From(message.AttachmentPath));
             }
 
-            if (message.AttachmentBytes != null &&
-                !string.IsNullOrWhiteSpace(message.AttachmentName))
+            if (message.AttachmentBytes != null && !string.IsNullOrWhiteSpace(message.AttachmentName))
             {
-                body.Attachments.Add(
-                    message.AttachmentName,
-                    message.AttachmentBytes);
+                email.Attachments ??= new List<EmailAttachment>();
+                email.Attachments.Add(new EmailAttachment
+                {
+                    Filename = message.AttachmentName,
+                    Content = message.AttachmentBytes,
+                    ContentType = "application/pdf"
+                });
             }
-
-            email.Body = body.ToMessageBody();
-
-            using var smtp = new SmtpClient();
-
-            try
+            var result = await _resend.EmailSendAsync(email);
+            if (!result.Success)
             {
-                Console.WriteLine("==================================");
-                Console.WriteLine("SMTP Host: " + _settings.Host);
-                Console.WriteLine("SMTP Port: " + _settings.Port);
-                Console.WriteLine("SMTP User: " + _settings.Username);
-
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-
-                Console.WriteLine("Connecting SMTP...");
-
-                await smtp.ConnectAsync(
-      _settings.Host,
-      _settings.Port,
-      SecureSocketOptions.SslOnConnect,
-      cts.Token);
-
-
-                Console.WriteLine("SMTP Connected");
-
-                Console.WriteLine("Authenticating...");
-                await smtp.AuthenticateAsync(
-                    _settings.Username,
-                    _settings.Password,
-                    cts.Token);
-
-                Console.WriteLine("Authenticated");
-
-                Console.WriteLine("Sending Email...");
-                await smtp.SendAsync(email, cts.Token);
-
-                Console.WriteLine("Email Sent Successfully");
-
-                Console.WriteLine("Disconnecting...");
-                await smtp.DisconnectAsync(true, cts.Token);
-
-                Console.WriteLine("SMTP Disconnected");
-                Console.WriteLine("==================================");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("========== EMAIL ERROR ==========");
-                Console.WriteLine(ex.ToString());
-                Console.WriteLine("=================================");
-                throw;
+                throw new Exception(result.Exception?.Message ?? "Failed to send email.");
             }
         }
     }
