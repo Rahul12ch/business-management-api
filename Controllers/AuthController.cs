@@ -37,20 +37,21 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Register(User user)
     {
         if (await _context.Users.AnyAsync(x => x.Username == user.Username))
-        { return BadRequest("Username already exists"); }
-
+        { return Conflict(new
+            { message = "Username already exists. Please choose another username." });
+        }
         if (await _context.Users.AnyAsync(x => x.Email == user.Email))
-        { return BadRequest("Email already exists"); }
-
+        { return Conflict(new
+            { message = "An account with this email already exists. Please log in." });
+        }
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
-        user.CreatedDate = DateTimeHelper.UtcNow(); _context.Users.Add(user);
+        user.CreatedDate = DateTimeHelper.UtcNow();
+        _context.Users.Add(user);
         await _context.SaveChangesAsync();
         return Ok(new
         {
-            message = "User registered successfully",
-            username = user.Username,
-            email = user.Email,
-            userId = user.Id
+            message = "User registered successfully.", 
+            username = user.Username, email = user.Email, userId = user.Id
         });
     }
 
@@ -58,9 +59,15 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login(User model)
     {
         var user = await _context.Users .FirstOrDefaultAsync(x => x.Email == model.Email);
-        if (user == null)  return Unauthorized("Invalid Email");
+        if (user == null)
+        { return Unauthorized(new
+            { message = "No account found with this email. Please create an account." });
+        }
         bool valid = BCrypt.Net.BCrypt.Verify( model.PasswordHash, user.PasswordHash);
-        if (!valid) return Unauthorized("Invalid Password");
+        if (!valid)
+        { return Unauthorized(new
+            { message = "Incorrect password." });
+        }
         var claims = new[]
         {
             new Claim( ClaimTypes.Name, user.Username),
