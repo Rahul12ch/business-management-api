@@ -24,6 +24,13 @@ packages/
 
 # Environment
 .env
+.env.*
+appsettings.Development.json
+
+# Angular
+node_modules/
+dist/
+.angular/
 
 # OS
 Thumbs.db
