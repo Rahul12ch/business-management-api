@@ -1,6 +1,7 @@
 ﻿using client.Data;
-using client.Models;
 using client.Helpers;
+using client.Models;
+using client.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -17,10 +18,11 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly SupabaseStorageService _supabaseStorageService;
 
-    public AuthController( AppDbContext context, IConfiguration configuration)
-    
-    {  _context = context; _configuration = configuration; }
+    public AuthController(AppDbContext context, IConfiguration configuration, SupabaseStorageService supabaseStorageService)
+
+    {  _context = context; _configuration = configuration; _supabaseStorageService = supabaseStorageService; }
     [Authorize]
     [HttpGet]
     public async Task<IActionResult> GetUsers()
@@ -93,61 +95,58 @@ public class AuthController : ControllerBase
     }
     [Authorize]
     [HttpPut("profile")]
-    public async Task<IActionResult> UpdateProfile(
-    UpdateProfileModel model)
+    public async Task<IActionResult> UpdateProfile(UpdateProfileModel model)
     {
-        var userId = User.FindFirst( ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(userId))
-        { 
-            return Unauthorized();}
-       var user = await _context.Users .FirstOrDefaultAsync(x => x.Id == int.Parse(userId));
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId)) return Unauthorized();
+        var user = await _context.Users.FirstOrDefaultAsync(x => x.Id == int.Parse(userId));
         if (user == null) return NotFound();
-        if (await _context.Users.AnyAsync(x =>  x.Username == model.Username &&  x.Id != user.Id))
-        {
-            return BadRequest( "Username already exists");
-        }
+        if (await _context.Users.AnyAsync(x => x.Username == model.Username && x.Id != user.Id))
+            return BadRequest("Username already exists");
         if (await _context.Users.AnyAsync(x => x.Email == model.Email && x.Id != user.Id))
+            return BadRequest("Email already exists");
+        user.Username = model.Username.Trim();
+        user.Email = model.Email.Trim();
+        string? oldImage = user.ProfileImage;
+        if (!string.IsNullOrWhiteSpace(model.ProfileImage) && model.ProfileImage != user.ProfileImage)
         {
-            return BadRequest( "Email already exists"); }
-        user.Username = model.Username.Trim(); user.Email = model.Email.Trim(); user.ProfileImage = model.ProfileImage;
-
-        if (!string.IsNullOrWhiteSpace( model.NewPassword))
+            user.ProfileImage = model.ProfileImage;
+        }
+        if (!string.IsNullOrWhiteSpace(model.NewPassword))
         {
             var valid = BCrypt.Net.BCrypt.Verify(
-             model.CurrentPassword, user.PasswordHash);
-            if (!valid)
-            {
-                return BadRequest( "Current password is incorrect");
-            }
-            user.PasswordHash =  BCrypt.Net.BCrypt.HashPassword( model.NewPassword); }
+                model.CurrentPassword,
+                user.PasswordHash);
+            if (!valid) return BadRequest("Current password is incorrect");
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.NewPassword);
+        }
         await _context.SaveChangesAsync();
+        if (!string.IsNullOrWhiteSpace(oldImage) && oldImage != user.ProfileImage)
+        {
+            await _supabaseStorageService.DeleteImageAsync(oldImage);
+        }
         return Ok(new
-        { message = "Profile updated successfully" });
+        {
+            message = "Profile updated successfully"
+        });
     }
     [Authorize]
     [HttpPost("upload-image")]
-    public async Task<IActionResult> UploadImage( IFormFile file)
+    public async Task<IActionResult> UploadImage(IFormFile file)
     {
-        if (file == null || file.Length == 0)
+        try
         {
-            return BadRequest("No file selected");
+            if (file == null || file.Length == 0)
+            { return BadRequest("No file selected");}
+            var imageUrl = await _supabaseStorageService.UploadImageAsync(file);
+            return Ok(new
+            { imageUrl });
         }
-        var extension = Path.GetExtension(file.FileName);
-        var fileName = $"{Guid.NewGuid()}{extension}";
-        var uploadsFolder = Path.Combine(
-        Directory.GetCurrentDirectory(),"wwwroot","uploads");
-        if (!Directory.Exists( uploadsFolder))
+        catch (Exception ex)
         {
-         Directory.CreateDirectory(uploadsFolder);
+            return StatusCode(500, new
+            { message = "Failed to upload image.", error = ex.Message });
         }
-        var filePath =Path.Combine(uploadsFolder, fileName);
-        using (var stream = new FileStream( filePath, FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
-        return Ok(new
-        {
-            imageUrl = $"uploads/{fileName}" });
     }
     [Authorize]
     [HttpDelete("{id}")]

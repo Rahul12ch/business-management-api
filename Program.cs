@@ -1,6 +1,7 @@
 using client.Data;
 using client.Models;
 using Resend;
+using System.Net.Http.Headers;
 using client.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,13 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
 builder.Services.Configure<EmailSettings>( builder.Configuration.GetSection("Email"));
+builder.Services.Configure<SupabaseSettings>( builder.Configuration.GetSection("Supabase"));
+builder.Services.AddHttpClient("Supabase", (serviceProvider, client) =>
+{ var config = serviceProvider .GetRequiredService<IConfiguration>();
+    client.BaseAddress = new Uri( $"{config["Supabase:Url"]}/storage/v1/");
+    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Bearer", config["Supabase:ServiceRoleKey"]);
+    client.DefaultRequestHeaders.Add( "apikey", config["Supabase:ServiceRoleKey"]);
+});
 builder.Services.AddResend(options =>
 {
     options.ApiToken = builder.Configuration["Email:ApiKey"]!;
@@ -20,6 +28,7 @@ builder.Services.AddResend(options =>
 builder.Services.AddScoped<EmailSender>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<PdfService>();
+builder.Services.AddScoped<SupabaseStorageService>();
 builder.Services.AddHostedService<ReminderService>();
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
