@@ -5,6 +5,7 @@ using System.Net.Http.Headers;
 using client.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -13,6 +14,9 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
+builder.Services.AddMemoryCache();
+builder.Services.AddResponseCompression(options => { options.EnableForHttps = true; });
+
 builder.Services.Configure<EmailSettings>( builder.Configuration.GetSection("Email"));
 builder.Services.Configure<SupabaseSettings>( builder.Configuration.GetSection("Supabase"));
 builder.Services.AddHttpClient("Supabase", (serviceProvider, client) =>
@@ -46,9 +50,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy( "AllowAngular", policy =>{
-        policy.AllowAnyOrigin()
-       .AllowAnyHeader()
-       .AllowAnyMethod();
+        policy.WithOrigins("https://business-management-ui.vercel.app")
+        .AllowAnyHeader()
+        .AllowAnyMethod();
     });
 });
 var app = builder.Build();
@@ -59,6 +63,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 app.UseHttpsRedirection();
+app.UseResponseCompression();
 app.UseStaticFiles();
 app.UseRouting();
 app.UseCors("AllowAngular");

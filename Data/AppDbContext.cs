@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.Entity<User>().HasKey(x => x.Id);
         modelBuilder.Entity<Customer>().HasKey(x => x.CustomerId);
+        modelBuilder.Entity<Customer>().HasIndex(x => x.CustomerName);
         modelBuilder.Entity<TaskItem>().HasKey(x => x.TaskId);
         modelBuilder.Entity<TaskDetail>().HasKey(x => x.TaskDetailId);
         modelBuilder.Entity<TaskPayment>().HasKey(x => x.PaymentId);
@@ -48,6 +49,10 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Customer>().Property(x => x.Address).HasMaxLength(500);
 
         modelBuilder.Entity<TaskItem>().HasIndex(x => x.OrderNo).IsUnique();
+        modelBuilder.Entity<TaskItem>().HasIndex(x => x.Status);
+        modelBuilder.Entity<TaskItem>().HasIndex(x => x.DueDate);
+        modelBuilder.Entity<TaskItem>().HasIndex(x => x.CreatedDate);
+        modelBuilder.Entity<TaskItem>().HasIndex(x => x.CustomerId);
         modelBuilder.Entity<TaskItem>().Property(x => x.TaskName).HasMaxLength(200);
         modelBuilder.Entity<TaskItem>().Property(x => x.Status).HasMaxLength(20).HasDefaultValue("Pending");
         modelBuilder.Entity<TaskItem>().Property(x => x.TotalAmount).HasColumnType("numeric(18,2)");
@@ -63,11 +68,16 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<TaskPayment>().Property(x => x.AmountPaid).HasColumnType("numeric(18,2)");
         modelBuilder.Entity<TaskPayment>().Property(x => x.PaymentMode).HasMaxLength(50);
         modelBuilder.Entity<TaskPayment>().Property(x => x.PaymentStatus).HasMaxLength(20).HasDefaultValue("Pending");
+        modelBuilder.Entity<TaskPayment>().HasIndex(x => x.PaymentDate);
+        modelBuilder.Entity<TaskPayment>().HasIndex(x => x.TaskId);
+        modelBuilder.Entity<TaskPayment>().HasIndex(x => x.PaymentStatus);
 
         modelBuilder.Entity<Notification>().Property(x => x.Title).HasMaxLength(150);
         modelBuilder.Entity<Notification>().Property(x => x.Message).HasMaxLength(500);
         modelBuilder.Entity<Notification>().Property(x => x.Type).HasMaxLength(50);
         modelBuilder.Entity<Notification>().Property(x => x.IsRead).HasDefaultValue(false);
         modelBuilder.Entity<Notification>().Property(x => x.CreatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
+        modelBuilder.Entity<Notification>().HasIndex(x => x.CreatedAt);
+        modelBuilder.Entity<Notification>().HasIndex(x => x.IsRead);
     }
 }
