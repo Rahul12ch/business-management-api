@@ -23,13 +23,31 @@ public class DashboardController : ControllerBase
     {
         try
         {
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.SpecifyKind(
+     DateTime.UtcNow.Date,
+     DateTimeKind.Utc);
 
             DateTime fromDate = period.ToLower() switch
             {
                 "week" => today.AddDays(-7),
-                "year" => new DateTime(today.Year, 1, 1),
-                _ => new DateTime(today.Year, today.Month, 1)
+
+                "year" => new DateTime(
+                    today.Year,
+                    1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc),
+
+                _ => new DateTime(
+                    today.Year,
+                    today.Month,
+                    1,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc)
             };
 
             var totalCustomers = await _context.Customers
