@@ -24,6 +24,7 @@ public class DashboardController : ControllerBase
         try
         {
             var today = DateTime.UtcNow.Date;
+
             DateTime fromDate = period.ToLower() switch
             {
                 "week" => today.AddDays(-7),
@@ -31,31 +32,35 @@ public class DashboardController : ControllerBase
                 _ => new DateTime(today.Year, today.Month, 1)
             };
 
-            var totalCustomersTask = _context.Customers.AsNoTracking().CountAsync();
-            var totalTasksTask = _context.Tasks.AsNoTracking().CountAsync();
-            var pendingTasksTask = _context.Tasks.AsNoTracking().CountAsync(x => x.Status == "Pending");
-            var completedTasksTask = _context.Tasks.AsNoTracking().CountAsync(x => x.Status == "Completed");
-            var overdueTasksTask = _context.Tasks.AsNoTracking().CountAsync(x => x.DueDate < today && x.Status != "Completed");
+            var totalCustomers = await _context.Customers
+                .AsNoTracking()
+                .CountAsync();
 
-            var totalRevenueTask = _context.TaskPayments
+            var totalTasks = await _context.Tasks
+                .AsNoTracking()
+                .CountAsync();
+
+            var pendingTasks = await _context.Tasks
+                .AsNoTracking()
+                .CountAsync(x => x.Status == "Pending");
+
+            var completedTasks = await _context.Tasks
+                .AsNoTracking()
+                .CountAsync(x => x.Status == "Completed");
+
+            var overdueTasks = await _context.Tasks
+                .AsNoTracking()
+                .CountAsync(x => x.DueDate < today && x.Status != "Completed");
+
+            var totalRevenue = await _context.TaskPayments
                 .AsNoTracking()
                 .Where(x => x.PaymentDate >= fromDate)
                 .SumAsync(x => (decimal?)x.AmountPaid);
 
-            var pendingAmountTask = _context.Tasks
+            var pendingAmount = await _context.Tasks
                 .AsNoTracking()
                 .Where(x => x.Status != "Completed")
                 .SumAsync(x => (decimal?)x.GrandTotal);
-
-            await Task.WhenAll(
-                totalCustomersTask,
-                totalTasksTask,
-                pendingTasksTask,
-                completedTasksTask,
-                overdueTasksTask,
-                totalRevenueTask,
-                pendingAmountTask
-            );
 
             var priorityTasks = await _context.Tasks
                 .AsNoTracking()
@@ -125,13 +130,13 @@ public class DashboardController : ControllerBase
             {
                 summary = new
                 {
-                    totalCustomers = totalCustomersTask.Result,
-                    totalTasks = totalTasksTask.Result,
-                    pendingTasks = pendingTasksTask.Result,
-                    completedTasks = completedTasksTask.Result,
-                    overdueTasks = overdueTasksTask.Result,
-                    totalRevenue = totalRevenueTask.Result ?? 0,
-                    pendingAmount = pendingAmountTask.Result ?? 0
+                    totalCustomers,
+                    totalTasks,
+                    pendingTasks,
+                    completedTasks,
+                    overdueTasks,
+                    totalRevenue = totalRevenue ?? 0,
+                    pendingAmount = pendingAmount ?? 0
                 },
                 priorityTasks,
                 recentPayments,
