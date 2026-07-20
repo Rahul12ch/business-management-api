@@ -23,13 +23,24 @@ public class DashboardController : ControllerBase
     {
         try
         {
-            var today = DateTime.UtcNow.Date;
+            var utcNow = DateTime.UtcNow;
+
+            var today = DateTime.SpecifyKind(
+                utcNow.Date,
+                DateTimeKind.Utc);
 
             DateTime fromDate = period.ToLower() switch
             {
                 "week" => today.AddDays(-7),
                 "year" => today.AddYears(-1),
-                _ => new DateTime(today.Year, today.Month, 1)
+                _ => new DateTime(
+                    today.Year,
+                    today.Month,
+                    1,
+                    0,
+                    0,
+                    0,
+                    DateTimeKind.Utc)
             };
 
             var totalCustomers = await _context.Customers
@@ -50,7 +61,10 @@ public class DashboardController : ControllerBase
 
             var overdueTasks = await _context.Tasks
                 .AsNoTracking()
-                .CountAsync(x => x.DueDate < today && x.Status != "Completed");
+                .CountAsync(x =>
+                    x.DueDate.HasValue &&
+                    x.DueDate.Value < today &&
+                    x.Status != "Completed");
 
             var totalRevenue = await _context.TaskPayments
                 .AsNoTracking()
@@ -88,7 +102,7 @@ public class DashboardController : ControllerBase
             var recentPayments = await _context.TaskPayments
                 .AsNoTracking()
                 .Include(x => x.Task)
-                .ThenInclude(t => t.Customer)
+                .ThenInclude(x => x.Customer)
                 .OrderByDescending(x => x.PaymentDate)
                 .Take(5)
                 .Select(x => new
@@ -105,12 +119,17 @@ public class DashboardController : ControllerBase
             var revenueChart = await _context.TaskPayments
                 .AsNoTracking()
                 .Where(x => x.PaymentDate >= fromDate)
-                .GroupBy(x => new { x.PaymentDate.Year, x.PaymentDate.Month })
+                .GroupBy(x => new
+                {
+                    x.PaymentDate.Year,
+                    x.PaymentDate.Month
+                })
                 .OrderBy(x => x.Key.Year)
                 .ThenBy(x => x.Key.Month)
                 .Select(x => new
                 {
-                    Month = CultureInfo.CurrentCulture.DateTimeFormat.GetAbbreviatedMonthName(x.Key.Month),
+                    Month = CultureInfo.InvariantCulture.DateTimeFormat
+                        .GetAbbreviatedMonthName(x.Key.Month),
                     Revenue = x.Sum(p => p.AmountPaid)
                 })
                 .ToListAsync();
