@@ -50,9 +50,13 @@ builder.Services.AddAuthorization();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy( "AllowAngular", policy =>{
-        policy.WithOrigins("https://business-management-ui.vercel.app")
-        .AllowAnyHeader()
-        .AllowAnyMethod();
+        policy.WithOrigins( "http://localhost:4200",
+                "https://business-management-ui.vercel.app",
+                "https://business-management-ui-git-master-rahul12ch1.vercel.app",
+                "https://business-management-1g4w9smsg-rahul12ch1.vercel.app"
+            )
+            .AllowAnyHeader()
+            .AllowAnyMethod();
     });
 });
 var app = builder.Build();
