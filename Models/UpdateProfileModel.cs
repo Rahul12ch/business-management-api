@@ -1,4 +1,5 @@
 ﻿namespace client.Models;
+
 public class UpdateProfileModel
 {
     public string Username { get; set; } = string.Empty;

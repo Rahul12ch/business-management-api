@@ -41,45 +41,49 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register(User user)
     {
-        user.Username = user.Username.Trim();
+        user.Username = user.Username.Trim().ToLower();
         user.Email = user.Email.Trim().ToLower();
+
         if (string.IsNullOrWhiteSpace(user.Username))
-        {
-            return BadRequest(new
-            {  message = "Username is required." });
-        }
+            return BadRequest(new { message = "Username is required." });
+
+        if (user.Username.Length < 3 || user.Username.Length > 20)
+            return BadRequest(new { message = "Username must be between 3 and 20 characters." });
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(user.Username, @"^[a-z0-9_]+$"))
+            return BadRequest(new { message = "Username can contain only lowercase letters, numbers and underscores." });
+
         if (string.IsNullOrWhiteSpace(user.Email))
-        {
-            return BadRequest(new
-            {  message = "Email is required." });
-        }
+            return BadRequest(new { message = "Email is required." });
 
         if (!new EmailAddressAttribute().IsValid(user.Email))
-        {
-            return BadRequest(new
-            { message = "Please enter a valid email address." });
-        }
+            return BadRequest(new { message = "Please enter a valid email address." });
+
+        if (string.IsNullOrWhiteSpace(user.PasswordHash))
+            return BadRequest(new { message = "Password is required." });
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(user.PasswordHash,
+            @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#])[A-Za-z\d@$!%*?&.#]{8,}$"))
+            return BadRequest(new { message = "Password must contain uppercase, lowercase, number and special character." });
 
         if (await _context.Users.AnyAsync(x => x.Username == user.Username))
-        {
-            return Conflict(new
-            { message = "Username already exists." });
-        }
+            return Conflict(new { message = "Username already exists." });
 
         if (await _context.Users.AnyAsync(x => x.Email == user.Email))
-        {
-            return Conflict(new
-            {  message = "An account with this email already exists." });
-        }
+            return Conflict(new { message = "An account with this email already exists." });
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(user.PasswordHash);
         user.CreatedDate = DateTimeHelper.UtcNow();
+
         _context.Users.Add(user);
         await _context.SaveChangesAsync();
 
         return Ok(new
         {
-            message = "User registered successfully.", username = user.Username, email = user.Email, userId = user.Id
+            message = "User registered successfully.",
+            userId = user.Id,
+            username = user.Username,
+            email = user.Email
         });
     }
 
@@ -144,38 +148,29 @@ public class AuthController : ControllerBase
 
         var user = await _context.Users .FirstOrDefaultAsync(x => x.Id == int.Parse(userId));
         if (user == null) return NotFound();
-        model.Username = model.Username.Trim();
+        model.Username = model.Username.Trim().ToLower();
         model.Email = model.Email.Trim().ToLower();
 
         if (string.IsNullOrWhiteSpace(model.Username))
-        {
-            return BadRequest(new
-            { message = "Username is required." });
-        }
+            return BadRequest(new { message = "Username is required." });
+
+        if (model.Username.Length < 3 || model.Username.Length > 20)
+            return BadRequest(new { message = "Username must be between 3 and 20 characters." });
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(model.Username, @"^[a-z0-9_]+$"))
+            return BadRequest(new { message = "Username can contain only lowercase letters, numbers and underscores." });
 
         if (string.IsNullOrWhiteSpace(model.Email))
-        {
-            return BadRequest(new
-            { message = "Email is required." });
-        }
+            return BadRequest(new { message = "Email is required." });
 
         if (!new EmailAddressAttribute().IsValid(model.Email))
-        {
-            return BadRequest(new
-            { message = "Please enter a valid email address." });
-        }
+            return BadRequest(new { message = "Please enter a valid email address." });
 
         if (await _context.Users.AnyAsync(x => x.Username == model.Username && x.Id != user.Id))
-        {
-            return Conflict(new
-            { message = "Username already exists." });
-        }
+            return Conflict(new { message = "Username already exists." });
 
-        if (await _context.Users.AnyAsync(x =>  x.Email == model.Email &&  x.Id != user.Id))
-        {
-            return Conflict(new
-            { message = "Email already exists." });
-        }
+        if (await _context.Users.AnyAsync(x => x.Email == model.Email && x.Id != user.Id))
+            return Conflict(new { message = "Email already exists." });
         user.Username = model.Username;
         user.Email = model.Email;
 
@@ -196,10 +191,13 @@ public class AuthController : ControllerBase
                 { message = "Current password is incorrect." });
             }
             if (model.NewPassword.Length < 8)
-            {
-                return BadRequest(new
-                { message = "Password must be at least 8 characters." });
-            }
+                return BadRequest(new { message = "Password must be at least 8 characters." });
+            if (model.NewPassword.Length < 8)
+                return BadRequest(new { message = "Password must be at least 8 characters." });
+            if (!System.Text.RegularExpressions.Regex.IsMatch(
+                model.NewPassword,
+                @"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.#]).+$"))
+                return BadRequest(new { message = "Password must contain uppercase, lowercase, number and special character." });
             if (BCrypt.Net.BCrypt.Verify( model.NewPassword, user.PasswordHash))
             {
                 return BadRequest(new
