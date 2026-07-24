@@ -7,35 +7,33 @@ namespace client.Templates
     {
         public static EmailMessage TaskCreated(TaskItem task)
         {
-            var details = new Dictionary<string, string>
-            {
-                { "Customer Name", task.Customer?.CustomerName ?? "" },
-                { "Phone Number", task.Customer?.PhoneNumber ?? "" },
-                { "Email", task.Customer?.Email ?? "" },
-                { "Address", task.Customer?.Address ?? "" },
-                { "Order No", task.OrderNo.ToString() },
-                { "Service", task.TaskName },
-                { "Created Date", DateTimeHelper.ToIndia(task.CreatedDate).ToString("dd MMM yyyy") },
-                { "Due Date", task.DueDate?.ToString("dd MMM yyyy") ?? "" },
-                { "Status", task.Status },
-                { "Subtotal", $"₹{task.SubTotal:N2}" },
-                { "GST", task.IsGstApplied ? $"₹{task.GstAmount:N2}" : "No GST" },
-                { "Grand Total", $"₹{task.GrandTotal:N2}" },
-                { "Message", "Your invoice bill is attached with this email." }
-            };
-            return EmailLayout.Create( $"Your Service Order #{task.OrderNo}", "Order Details", details);
-        }
-        public static EmailMessage TaskUpdated(TaskItem task)
-        {
-            return EmailLayout.Create( $"Order #{task.OrderNo} Updated", "Service Order Updated",
+            return EmailLayout.Create(
+                $"RANA AIR CONDITIONING - Service Order #{task.OrderNo}",
+                "Thank You for Choosing RANA AIR CONDITIONING",
                 new Dictionary<string, string>
                 {
                     { "Customer", task.Customer?.CustomerName ?? "" },
-                    { "Order No", task.OrderNo.ToString() },
+                    { "Order Number", task.OrderNo.ToString() },
                     { "Service", task.TaskName },
-                    { "Current Status", task.Status },
-                    { "Grand Total", $"₹{task.GrandTotal:N2}" },
-                    { "Message", "Your updated invoice bill is attached with this email." }
+                    { "Status", task.Status },
+                    { "Created", DateTimeHelper.ToIndia(task.CreatedDate).ToString("dd MMM yyyy") },
+                    { "Due Date", task.DueDate?.ToString("dd MMM yyyy") ?? "N/A" },
+                    { "Message", "Your service order has been created successfully. Please find your invoice attached as a PDF. Thank you for choosing RANA AIR CONDITIONING." }
+                });
+        }
+
+        public static EmailMessage TaskUpdated(TaskItem task)
+        {
+            return EmailLayout.Create(
+                $"RANA AIR CONDITIONING - Order #{task.OrderNo} Updated",
+                "Your Service Order Has Been Updated",
+                new Dictionary<string, string>
+                {
+                    { "Customer", task.Customer?.CustomerName ?? "" },
+                    { "Order Number", task.OrderNo.ToString() },
+                    { "Service", task.TaskName },
+                    { "Status", task.Status },
+                    { "Message", "Your service order has been updated. Please find the latest invoice attached as a PDF." }
                 });
         }
     }
