@@ -29,14 +29,20 @@ builder.Services.AddHttpClient("Supabase", (serviceProvider, client) =>
 });
 var apiKey = builder.Configuration["Email:ApiKey"];
 
-Console.WriteLine($"ApiKey length: {apiKey?.Length}");
-Console.WriteLine($"Starts with re_: {apiKey?.StartsWith("re_")}");
-Console.WriteLine($"Contains CR: {apiKey?.Contains('\r')}");
-Console.WriteLine($"Contains LF: {apiKey?.Contains('\n')}");
+if (string.IsNullOrWhiteSpace(apiKey))
+    throw new InvalidOperationException("Email API key is missing.");
+
+apiKey = apiKey
+    .Replace("\r", "")
+    .Replace("\n", "")
+    .Trim();
+
+Console.WriteLine($"Contains LF: {apiKey.Contains('\n')}");
+Console.WriteLine($"Contains CR: {apiKey.Contains('\r')}");
 
 builder.Services.AddResend(options =>
 {
-    options.ApiToken = apiKey!;
+    options.ApiToken = apiKey;
 });
 builder.Services.AddScoped<EmailSender>();
 builder.Services.AddScoped<EmailService>();
