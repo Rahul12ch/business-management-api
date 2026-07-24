@@ -72,8 +72,8 @@ public class TasksController : ControllerBase
         {
             message = "Customer is required."
         });
-        var last = await _context.Tasks.OrderByDescending(x => x.OrderNo).FirstOrDefaultAsync();
-        task.OrderNo = last == null ? 1001 : last.OrderNo + 1; var utcNow = DateTimeHelper.UtcNow();
+        task.OrderNo = await _context.Database .SqlQuery<int>($@"SELECT nextval('order_no_seq')")
+       .SingleAsync(); var utcNow = DateTimeHelper.UtcNow();
         task.CreatedDate = utcNow; task.TotalAmount = task.GrandTotal;
         task.Status = string.IsNullOrWhiteSpace(task.Status) ? "Pending" : task.Status; task.Customer = null;
         _context.Tasks.Add(task);
