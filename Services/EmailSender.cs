@@ -8,6 +8,7 @@ namespace client.Services
     {
         private readonly IResend _resend;
         private readonly EmailSettings _settings;
+
         public EmailSender(IResend resend, IOptions<EmailSettings> options)
         {
             _resend = resend;
@@ -23,25 +24,34 @@ namespace client.Services
             };
 
             if (!string.IsNullOrWhiteSpace(message.To))
-            { email.To.Add(message.To); }
+            {
+                email.To.Add(message.To);
+            }
             else
             {
                 foreach (var admin in _settings.AdminEmails)
                 {
                     if (!string.IsNullOrWhiteSpace(admin))
-                    { email.To.Add(admin); }
+                    {
+                        email.To.Add(admin);
+                    }
                 }
             }
 
             if (!email.To.Any())
-            { throw new InvalidOperationException("No email recipient specified."); }
-            if (message.IsHtml) email.HtmlBody = message.Body;
-            else email.TextBody = message.Body;
+                throw new InvalidOperationException("No email recipient specified.");
+
+            if (message.IsHtml)
+                email.HtmlBody = message.Body;
+            else
+                email.TextBody = message.Body;
+
             if (!string.IsNullOrWhiteSpace(message.AttachmentPath))
             {
                 email.Attachments ??= new List<EmailAttachment>();
                 email.Attachments.Add(EmailAttachment.From(message.AttachmentPath));
             }
+
             if (message.AttachmentBytes != null && !string.IsNullOrWhiteSpace(message.AttachmentName))
             {
                 email.Attachments ??= new List<EmailAttachment>();
@@ -52,10 +62,25 @@ namespace client.Services
                     ContentType = "application/pdf"
                 });
             }
-           var result = await _resend.EmailSendAsync(email);
+
+            // ===== Temporary diagnostics =====
+            Console.WriteLine("========== EMAIL DEBUG ==========");
+            Console.WriteLine($"DisplayName : {_settings.DisplayName}");
+            Console.WriteLine($"From config : {_settings.From}");
+            Console.WriteLine($"From header : {email.From}");
+            Console.WriteLine($"Recipients  : {string.Join(", ", email.To)}");
+            Console.WriteLine($"ApiKey len  : {_settings.ApiKey?.Length}");
+            Console.WriteLine($"ApiKey head : {_settings.ApiKey?[..Math.Min(10, _settings.ApiKey.Length)]}");
+            Console.WriteLine("=================================");
+            // ================================
+
+            var result = await _resend.EmailSendAsync(email);
+
             if (!result.Success)
             {
-                throw new InvalidOperationException( result.Exception?.Message ?? "Failed to send email.");
+                Console.WriteLine(result.Exception?.ToString());
+                throw new InvalidOperationException(
+                    result.Exception?.Message ?? "Failed to send email.");
             }
         }
     }
