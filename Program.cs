@@ -17,8 +17,10 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
 builder.Services.AddResponseCompression(options => { options.EnableForHttps = true; });
 
-builder.Services.Configure<EmailSettings>( builder.Configuration.GetSection("Email"));
-builder.Services.Configure<SupabaseSettings>( builder.Configuration.GetSection("Supabase"));
+builder.Services.AddOptions<EmailSettings>() .Bind(builder.Configuration.GetSection("Email"))
+    .ValidateDataAnnotations() .ValidateOnStart();
+builder.Services .AddOptions<SupabaseSettings>() .Bind(builder.Configuration.GetSection("Supabase"))
+    .ValidateOnStart();
 builder.Services.AddHttpClient("Supabase", (serviceProvider, client) =>
 { var config = serviceProvider .GetRequiredService<IConfiguration>();
     client.BaseAddress = new Uri( $"{config["Supabase:Url"]}/storage/v1/");

@@ -1,10 +1,16 @@
-﻿namespace client.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+public class EmailSettings
 {
-    public class EmailSettings
-    {
-        public string DisplayName { get; set; } = string.Empty;
-        public string From { get; set; } = string.Empty;
-        public List<string> AdminEmails { get; set; } = new();
-        public string ApiKey { get; set; } = string.Empty;
-    }
+    [Required]
+    public string DisplayName { get; set; } = "";
+
+    [Required]
+    [EmailAddress]
+    public string From { get; set; } = "";
+
+    public List<string> AdminEmails { get; set; } = new();
+
+    [Required]
+    public string ApiKey { get; set; } = "";
 }

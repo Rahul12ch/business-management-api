@@ -6,6 +6,7 @@ using System.Diagnostics;
 using client.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 
 namespace client.Controllers;
@@ -17,9 +18,10 @@ public class TasksController : ControllerBase
 {
     private readonly AppDbContext _context;
     private readonly EmailService _emailService;
-    public TasksController(AppDbContext context, EmailService emailService)
+    private readonly ILogger<TasksController> _logger;
+    public TasksController( AppDbContext context, EmailService emailService, ILogger<TasksController> logger)
     {
-        _context = context; _emailService = emailService;
+        _context = context; _emailService = emailService; _logger = logger;
     }
     [HttpGet]
     public async Task<IActionResult> GetTasks(string? search = null, int page = 1, int pageSize = 10)
@@ -65,17 +67,20 @@ public class TasksController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> AddTask(TaskItem task)
     {
-        var sw = Stopwatch.StartNew(); Console.WriteLine("Task Save Started");
-        if (task.CustomerId <= 0) return BadRequest();
+        var sw = Stopwatch.StartNew();  _logger.LogInformation("Creating new task...");
+        if (task.CustomerId <= 0) return BadRequest(new
+        {
+            message = "Customer is required."
+        });
         var last = await _context.Tasks.OrderByDescending(x => x.OrderNo).FirstOrDefaultAsync();
         task.OrderNo = last == null ? 1001 : last.OrderNo + 1; var utcNow = DateTimeHelper.UtcNow();
         task.CreatedDate = utcNow; task.TotalAmount = task.GrandTotal;
         task.Status = string.IsNullOrWhiteSpace(task.Status) ? "Pending" : task.Status; task.Customer = null;
         _context.Tasks.Add(task);
         await _context.SaveChangesAsync();
-        Console.WriteLine($"Task saved : {sw.ElapsedMilliseconds} ms");
+        _logger.LogInformation( "Task saved in {Elapsed} ms", sw.ElapsedMilliseconds);
         var created = await LoadTask(task.TaskId);
-        Console.WriteLine($"Task loaded : {sw.ElapsedMilliseconds} ms");
+        _logger.LogInformation( "Task loaded in {Elapsed} ms", sw.ElapsedMilliseconds);
         _context.Notifications.Add(new Notification
         { Title = "Customer Added", Message = $"{created!.Customer?.CustomerName} added for Order #{created.OrderNo}.",
           Type = "Customer", ReferenceId = created.CustomerId, IsRead = false, CreatedAt = utcNow
@@ -85,22 +90,20 @@ public class TasksController : ControllerBase
           Type = "Task", ReferenceId = created.TaskId, IsRead = false, CreatedAt = utcNow
         });
         await _context.SaveChangesAsync();
-        Console.WriteLine("Before Email");
+        _logger.LogInformation( "Starting task creation email for Order #{OrderNo}.", created!.OrderNo);
         _ = Task.Run(async () =>
         {
             try
             {
-                await _emailService.SendTaskCreatedAsync(
-                    created!,
-                    CreateInvoiceDto(created!)
+                await _emailService.SendTaskCreatedAsync( created!, CreateInvoiceDto(created!)
                 );
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex);
+                _logger.LogError( ex, "Failed to send task creation email for Order #{OrderNo}",
+                    created!.OrderNo);
             }
         });
-
         return Ok(CreateResponse(created!));
     }
     [HttpPut("{id}")]
@@ -130,6 +133,7 @@ public class TasksController : ControllerBase
         }
         await _context.SaveChangesAsync();
         var updated = await LoadTask(id);
+        _logger.LogInformation( "Task {OrderNo} updated successfully.", updated!.OrderNo);
         _context.Notifications.Add(new Notification
         { Title = "Task Updated", Message = $"Order #{updated!.OrderNo} updated. Status changed from {oldStatus} to {updated.Status}.",
           Type = "Task", ReferenceId = updated.TaskId, IsRead = false, CreatedAt = utcNow });
@@ -139,7 +143,10 @@ public class TasksController : ControllerBase
             await _emailService.SendTaskUpdatedAsync(  updated!, CreateInvoiceDto(updated!), oldStatus);
         }
         catch (Exception ex)
-        { Console.WriteLine(ex); }
+        {
+            _logger.LogError( ex, "Failed to send task update email for Order #{OrderNo}",
+                updated!.OrderNo);
+        }
         return Ok(CreateResponse(updated!));
     }
     [HttpDelete("{id}")]
@@ -157,7 +164,11 @@ public class TasksController : ControllerBase
         { _context.TaskDetails.RemoveRange(task.TaskDetails ); }
         _context.Tasks.Remove(task);
         await _context.SaveChangesAsync();
-        return Ok( new { message = "Task deleted successfully" });
+        _logger.LogInformation( "Task {OrderNo} deleted successfully.", task.OrderNo);
+        return Ok(new
+        {
+            message = "Task deleted successfully"
+        });
     }
     private async Task<TaskItem?> LoadTask(int id)
     {

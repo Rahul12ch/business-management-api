@@ -2,6 +2,7 @@
 using client.Models;
 using client.Helpers;
 using client.Templates;
+using Microsoft.Extensions.Logging;
 using Microsoft.EntityFrameworkCore;
 
 namespace client.Services;
@@ -9,15 +10,16 @@ namespace client.Services;
 public class ReminderService : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ILogger<ReminderService> _logger;
     private static readonly TimeZoneInfo IndiaTimeZone =
     OperatingSystem.IsWindows()
         ? TimeZoneInfo.FindSystemTimeZoneById("India Standard Time")
         : TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
-    public ReminderService(IServiceProvider serviceProvider)
+    public ReminderService( IServiceProvider serviceProvider, ILogger<ReminderService> logger)
     {
         _serviceProvider = serviceProvider;
+        _logger = logger;
     }
-
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -33,7 +35,7 @@ public class ReminderService : BackgroundService
             try
             { await RunReminderCheck(); }
             catch (Exception ex)
-            { Console.WriteLine($"ReminderService Error: {ex}"); }
+            { _logger.LogError(ex, "ReminderService failed."); }
         }
     }
     private async Task RunReminderCheck()
@@ -41,33 +43,47 @@ public class ReminderService : BackgroundService
         using var scope = _serviceProvider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var emailSender = scope.ServiceProvider.GetRequiredService<EmailSender>();
-        var today = TimeZoneInfo.ConvertTimeFromUtc(
-            DateTime.UtcNow, IndiaTimeZone).Date;
+        var today = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, IndiaTimeZone).Date;
         var tomorrow = today.AddDays(1);
         var dueTasks = await context.Tasks
-            .Include(x => x.Customer) .Where(x => x.DueDate == today && x.Status != "Completed") .ToListAsync();
+       .Include(x => x.Customer).Where(x => x.DueDate == today && x.Status != "Completed").ToListAsync();
         foreach (var task in dueTasks)
         {
             if (await AlreadySent(context, "TaskDue", task.TaskId)) continue;
-            await emailSender.SendAsync(
-                ReminderTemplates.TaskDueToday(
-                    task.OrderNo.ToString(),  task.Customer?.CustomerName ?? "",  task.TaskName,  task.DueDate ?? today));
-            await SaveNotification(
-                context, "Task Due Today", $"Order #{task.OrderNo} due today", "TaskDue", task.TaskId);
+            try
+            {
+                await emailSender.SendAsync(ReminderTemplates.TaskDueToday(
+                task.OrderNo.ToString(), task.Customer?.CustomerName ?? "",
+                task.TaskName, task.DueDate ?? today));
+                await SaveNotification(context,
+                "Task Due Today", $"Order #{task.OrderNo} due today", "TaskDue", task.TaskId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(
+                    ex, "Failed to send due reminder for Order #{OrderNo}", task.OrderNo);
+            }
         }
         var overdueTasks = await context.Tasks
-            .Include(x => x.Customer) .Where(x => x.DueDate < today && x.Status != "Completed") .ToListAsync();
+            .Include(x => x.Customer).Where(x => x.DueDate < today && x.Status != "Completed").ToListAsync();
         foreach (var task in overdueTasks)
         {
             if (await AlreadySent(context, "TaskOverdue", task.TaskId)) continue;
-            await emailSender.SendAsync(
-                ReminderTemplates.TaskOverdue(
-                    task.OrderNo.ToString(), task.Customer?.CustomerName ?? "", task.TaskName, task.DueDate ?? today));
-            await SaveNotification(
-                context, "Task Overdue",$"Order #{task.OrderNo} overdue", "TaskOverdue", task.TaskId);
+            try
+            {
+                await emailSender.SendAsync(ReminderTemplates.TaskOverdue(
+                task.OrderNo.ToString(), task.Customer?.CustomerName ?? "",
+                task.TaskName, task.DueDate ?? today));
+                await SaveNotification(context, "Task Overdue", $"Order #{task.OrderNo} overdue", "TaskOverdue", task.TaskId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError( ex, "Failed to send overdue reminder for Order #{OrderNo}",
+                    task.OrderNo);
+            }
         }
         var paymentTasks = await context.Tasks
-            .Include(x => x.Customer) .Include(x => x.TaskPayments) .ToListAsync();
+            .Include(x => x.Customer).Include(x => x.TaskPayments).ToListAsync();
         foreach (var task in paymentTasks)
         {
             var paid = task.TaskPayments?.Sum(x => x.AmountPaid) ?? 0;
@@ -75,35 +91,49 @@ public class ReminderService : BackgroundService
             if (balance <= 0) continue;
             var type = task.DueDate < today ? "PaymentOverdue" : "PaymentPending";
             if (await AlreadySent(context, type, task.TaskId)) continue;
-            if (type == "PaymentOverdue")
+            try
             {
-                await emailSender.SendAsync(
-                    ReminderTemplates.PaymentOverdue(
-                        task.OrderNo.ToString(), task.Customer?.CustomerName ?? "", balance, task.DueDate ?? today));
+                if (type == "PaymentOverdue")
+                {
+                    await emailSender.SendAsync( ReminderTemplates.PaymentOverdue(
+                    task.OrderNo.ToString(), task.Customer?.CustomerName ?? "",
+                    balance, task.DueDate ?? today));
+                }
+                else
+                {
+                    await emailSender.SendAsync( ReminderTemplates.PendingPayment(
+                    task.OrderNo.ToString(), task.Customer?.CustomerName ?? "",
+                    balance, task.DueDate ?? today));
+                }
+                await SaveNotification( context, type, $"Order #{task.OrderNo} balance ₹{balance:N2}",
+                type, task.TaskId);
             }
-            else
+            catch (Exception ex)
             {
-                await emailSender.SendAsync(
-                    ReminderTemplates.PendingPayment(
-                        task.OrderNo.ToString(),  task.Customer?.CustomerName ?? "",  balance,  task.DueDate ?? today));
+                _logger.LogError( ex, "Failed to send {ReminderType} reminder for Order #{OrderNo}",
+                 type, task.OrderNo);
             }
-            await SaveNotification(
-                context,  type,  $"Order #{task.OrderNo} balance ₹{balance:N2}",  type,  task.TaskId);
         }
-        var customers = await context.Customers.CountAsync();
-        var tasksCreated = await context.Tasks.CountAsync(x => x.CreatedDate >= today && x.CreatedDate < tomorrow);
-        var completed = await context.Tasks.CountAsync(x => x.Status == "Completed");
-        var payments = await context.TaskPayments
-            .Where(x =>  x.PaymentDate >= today && x.PaymentDate < tomorrow)
-            .SumAsync(x => x.AmountPaid);
-        var pending = paymentTasks.Sum(t =>
-        {
-            var paid = t.TaskPayments?.Sum(x => x.AmountPaid) ?? 0; return Math.Max(0, t.GrandTotal - paid);
-        });
-        await emailSender.SendAsync(
-            SummaryTemplates.Daily(
-                customers,  tasksCreated,  completed,  payments,  pending));
-    }
+            var customers = await context.Customers.CountAsync();
+            var tasksCreated = await context.Tasks.CountAsync(x => x.CreatedDate >= today && x.CreatedDate < tomorrow);
+            var completed = await context.Tasks.CountAsync(x => x.Status == "Completed");
+            var payments = await context.TaskPayments
+                .Where(x => x.PaymentDate >= today && x.PaymentDate < tomorrow)
+                .SumAsync(x => x.AmountPaid);
+            var pending = paymentTasks.Sum(t =>
+            {
+                var paid = t.TaskPayments?.Sum(x => x.AmountPaid) ?? 0; return Math.Max(0, t.GrandTotal - paid);
+            });
+            try
+            {
+                await emailSender.SendAsync( SummaryTemplates.Daily(
+                customers, tasksCreated, completed, payments, pending));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError( ex, "Failed to send daily summary email.");
+            }
+        }
     private async Task<bool> AlreadySent( AppDbContext context, string type, int id)
     {
         var today = TimeZoneInfo.ConvertTimeFromUtc(

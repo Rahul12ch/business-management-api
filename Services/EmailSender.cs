@@ -8,36 +8,40 @@ namespace client.Services
     {
         private readonly IResend _resend;
         private readonly EmailSettings _settings;
-        public EmailSender( IResend resend, IOptions<EmailSettings> options)
+        public EmailSender(IResend resend, IOptions<EmailSettings> options)
         {
             _resend = resend;
             _settings = options.Value;
         }
+
         public async Task SendAsync(client.Models.EmailMessage message)
         {
             var email = new Resend.EmailMessage
             {
-                Subject = message.Subject
+                Subject = message.Subject,
+                From = $"{_settings.DisplayName} <{_settings.From}>"
             };
-          
-            email.From = $"{_settings.DisplayName} <{_settings.From}>";
+
             if (!string.IsNullOrWhiteSpace(message.To))
             { email.To.Add(message.To); }
             else
             {
                 foreach (var admin in _settings.AdminEmails)
-                { email.To.Add(admin); }
+                {
+                    if (!string.IsNullOrWhiteSpace(admin))
+                    { email.To.Add(admin); }
+                }
             }
 
+            if (!email.To.Any())
+            { throw new InvalidOperationException("No email recipient specified."); }
             if (message.IsHtml) email.HtmlBody = message.Body;
             else email.TextBody = message.Body;
-
             if (!string.IsNullOrWhiteSpace(message.AttachmentPath))
             {
                 email.Attachments ??= new List<EmailAttachment>();
-                email.Attachments.Add( EmailAttachment.From(message.AttachmentPath));
+                email.Attachments.Add(EmailAttachment.From(message.AttachmentPath));
             }
-
             if (message.AttachmentBytes != null && !string.IsNullOrWhiteSpace(message.AttachmentName))
             {
                 email.Attachments ??= new List<EmailAttachment>();
@@ -48,10 +52,10 @@ namespace client.Services
                     ContentType = "application/pdf"
                 });
             }
-            var result = await _resend.EmailSendAsync(email);
+           var result = await _resend.EmailSendAsync(email);
             if (!result.Success)
             {
-                throw new Exception(result.Exception?.Message ?? "Failed to send email.");
+                throw new InvalidOperationException( result.Exception?.Message ?? "Failed to send email.");
             }
         }
     }
