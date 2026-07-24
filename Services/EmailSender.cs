@@ -1,4 +1,5 @@
 ﻿using client.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Resend;
 
@@ -8,13 +9,11 @@ namespace client.Services
     {
         private readonly IResend _resend;
         private readonly EmailSettings _settings;
-
-        public EmailSender(IResend resend, IOptions<EmailSettings> options)
+        private readonly ILogger<EmailSender> _logger;
+        public EmailSender( IResend resend, IOptions<EmailSettings> options, ILogger<EmailSender> logger)
         {
-            _resend = resend;
-            _settings = options.Value;
+            _resend = resend; _settings = options.Value; _logger = logger;
         }
-
         public async Task SendAsync(client.Models.EmailMessage message)
         {
             var email = new Resend.EmailMessage
@@ -22,7 +21,6 @@ namespace client.Services
                 Subject = message.Subject,
                 From = $"{_settings.DisplayName} <{_settings.From}>"
             };
-
             if (!string.IsNullOrWhiteSpace(message.To))
             {
                 email.To.Add(message.To);
@@ -37,21 +35,17 @@ namespace client.Services
                     }
                 }
             }
-
             if (!email.To.Any())
+            {
                 throw new InvalidOperationException("No email recipient specified.");
-
-            if (message.IsHtml)
-                email.HtmlBody = message.Body;
-            else
-                email.TextBody = message.Body;
-
-            if (!string.IsNullOrWhiteSpace(message.AttachmentPath))
+            }
+            if (message.IsHtml) email.HtmlBody = message.Body;
+            else email.TextBody = message.Body;
+         /*   if (!string.IsNullOrWhiteSpace(message.AttachmentPath))
             {
                 email.Attachments ??= new List<EmailAttachment>();
                 email.Attachments.Add(EmailAttachment.From(message.AttachmentPath));
             }
-
             if (message.AttachmentBytes != null && !string.IsNullOrWhiteSpace(message.AttachmentName))
             {
                 email.Attachments ??= new List<EmailAttachment>();
@@ -61,26 +55,21 @@ namespace client.Services
                     Content = message.AttachmentBytes,
                     ContentType = "application/pdf"
                 });
-            }
-
-            // ===== Temporary diagnostics =====
-            Console.WriteLine("========== EMAIL DEBUG ==========");
-            Console.WriteLine($"DisplayName : {_settings.DisplayName}");
-            Console.WriteLine($"From config : {_settings.From}");
-            Console.WriteLine($"From header : {email.From}");
-            Console.WriteLine($"Recipients  : {string.Join(", ", email.To)}");
-            Console.WriteLine($"ApiKey len  : {_settings.ApiKey?.Length}");
-            Console.WriteLine($"ApiKey head : {_settings.ApiKey?[..Math.Min(10, _settings.ApiKey.Length)]}");
-            Console.WriteLine("=================================");
-            // ================================
-
-            var result = await _resend.EmailSendAsync(email);
-
-            if (!result.Success)
+            }*/
+            try
             {
-                Console.WriteLine(result.Exception?.ToString());
-                throw new InvalidOperationException(
-                    result.Exception?.Message ?? "Failed to send email.");
+                var result = await _resend.EmailSendAsync(email);
+                if (!result.Success)
+                {
+                    if (result.Exception != null) throw result.Exception;
+                    throw new InvalidOperationException("Failed to send email.");
+                }
+                _logger.LogInformation( "Email sent successfully to {Recipients}", string.Join(", ", email.To));
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError( ex, "Failed to send email to {Recipients}", string.Join(", ", email.To));
+                throw;
             }
         }
     }

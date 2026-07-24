@@ -15,7 +15,12 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddMemoryCache();
-builder.Services.AddResponseCompression(options => { options.EnableForHttps = true; });
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.BrotliCompressionProvider>();
+    options.Providers.Add<Microsoft.AspNetCore.ResponseCompression.GzipCompressionProvider>();
+});
 
 builder.Services.AddOptions<EmailSettings>() .Bind(builder.Configuration.GetSection("Email"))
     .ValidateDataAnnotations() .ValidateOnStart();
@@ -28,18 +33,9 @@ builder.Services.AddHttpClient("Supabase", (serviceProvider, client) =>
     client.DefaultRequestHeaders.Add( "apikey", config["Supabase:ServiceRoleKey"]);
 });
 var apiKey = builder.Configuration["Email:ApiKey"];
-
 if (string.IsNullOrWhiteSpace(apiKey))
     throw new InvalidOperationException("Email API key is missing.");
-
-apiKey = apiKey
-    .Replace("\r", "")
-    .Replace("\n", "")
-    .Trim();
-
-Console.WriteLine($"Contains LF: {apiKey.Contains('\n')}");
-Console.WriteLine($"Contains CR: {apiKey.Contains('\r')}");
-
+apiKey = apiKey .Replace("\r", "") .Replace("\n", "") .Trim();
 builder.Services.AddResend(options =>
 {
     options.ApiToken = apiKey;
@@ -49,6 +45,7 @@ builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<PdfService>();
 builder.Services.AddScoped<SupabaseStorageService>();
 builder.Services.AddHostedService<ReminderService>();
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options => options.UseNpgsql(connectionString));
 builder.Services .AddAuthentication( JwtBearerDefaults.AuthenticationScheme)
