@@ -14,7 +14,7 @@ namespace client.Controllers;
 public class CustomersController : ControllerBase
 {
     private readonly AppDbContext _context;
-    public CustomersController( AppDbContext context, EmailSender emailSender)
+    public CustomersController(AppDbContext context)
     {
         _context = context;
     }

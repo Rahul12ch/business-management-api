@@ -27,9 +27,16 @@ builder.Services.AddHttpClient("Supabase", (serviceProvider, client) =>
     client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue( "Bearer", config["Supabase:ServiceRoleKey"]);
     client.DefaultRequestHeaders.Add( "apikey", config["Supabase:ServiceRoleKey"]);
 });
+var apiKey = builder.Configuration["Email:ApiKey"];
+
+Console.WriteLine($"ApiKey length: {apiKey?.Length}");
+Console.WriteLine($"Starts with re_: {apiKey?.StartsWith("re_")}");
+Console.WriteLine($"Contains CR: {apiKey?.Contains('\r')}");
+Console.WriteLine($"Contains LF: {apiKey?.Contains('\n')}");
+
 builder.Services.AddResend(options =>
 {
-    options.ApiToken = builder.Configuration["Email:ApiKey"]!;
+    options.ApiToken = apiKey!;
 });
 builder.Services.AddScoped<EmailSender>();
 builder.Services.AddScoped<EmailService>();
