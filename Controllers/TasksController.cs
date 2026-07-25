@@ -50,11 +50,12 @@ public class TasksController : ControllerBase
     [HttpGet("next-order-no")]
     public async Task<IActionResult> GetNextOrderNo()
     {
-        var last = await _context.Tasks
-        .OrderByDescending(x => x.OrderNo) .FirstOrDefaultAsync();
+        var nextOrderNo = await _context.Database.SqlQuery<int>($@"
+        SELECT last_value + CASE WHEN is_called THEN 1 ELSE 0 END AS ""Value""  FROM order_no_seq")
+        .SingleAsync();
         return Ok(new
         {
-            nextOrderNo = last == null ? 1001 : last.OrderNo + 1
+            nextOrderNo
         });
     }
     [HttpGet("{id}")]
